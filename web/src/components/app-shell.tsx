@@ -34,8 +34,8 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="px-safe flex-1">
-        <div className="mx-auto w-full max-w-md p-4">
+      <main className="px-safe flex flex-1 flex-col">
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col p-4">
           <Outlet />
         </div>
       </main>

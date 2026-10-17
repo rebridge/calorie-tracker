@@ -23,3 +23,16 @@ function formatterFor(timeZone: string | undefined) {
 export function today(now: Date = new Date(), timeZone: string | undefined = process.env.TZ || undefined): string {
   return formatterFor(timeZone).format(now);
 }
+
+const timeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** The current wall-clock time as HH:MM (24h) in the container's time zone. */
+export function localTime(now: Date = new Date(), timeZone: string | undefined = process.env.TZ || undefined): string {
+  const key = timeZone ?? "";
+  let fmt = timeFormatters.get(key);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    timeFormatters.set(key, fmt);
+  }
+  return fmt.format(now);
+}

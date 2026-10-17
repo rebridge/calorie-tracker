@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { today } from "./today.js";
+import { localTime, today } from "./today.js";
 
 describe("today", () => {
   it("formats as YYYY-MM-DD", () => {
@@ -30,5 +30,16 @@ describe("today", () => {
       if (prev === undefined) delete process.env.TZ;
       else process.env.TZ = prev;
     }
+  });
+});
+
+describe("localTime", () => {
+  it("formats as 24h HH:MM in the given time zone", () => {
+    expect(localTime(new Date("2026-10-14T12:14:00Z"), "America/New_York")).toBe("08:14");
+    expect(localTime(new Date("2026-10-14T22:05:00Z"), "America/New_York")).toBe("18:05");
+  });
+
+  it("writes midnight as 00, not 24", () => {
+    expect(localTime(new Date("2026-10-14T04:00:00Z"), "America/New_York")).toBe("00:00");
   });
 });
