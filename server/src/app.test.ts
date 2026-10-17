@@ -18,7 +18,11 @@ beforeAll(() => {
   fs.writeFileSync(path.join(webDist, "app.js"), "console.log('hi')");
 
   handle = openDb(path.join(tmp, "data", "calories.db"));
-  app = createApp({ db: handle.db, webDist });
+  app = createApp({
+    db: handle.db,
+    webDist,
+    estimateMeal: () => Promise.reject(new Error("not used")),
+  });
 });
 
 afterAll(() => {

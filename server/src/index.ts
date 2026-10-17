@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
+import { createMealEstimator } from "./claude.js";
 import { openDb, type Db } from "./db/index.js";
 
 function fail(message: string): never {
@@ -28,7 +29,7 @@ try {
   fail(`could not open database at ${databasePath}: ${(err as Error).message}.${hint}`);
 }
 
-const app = createApp({ db, webDist });
+const app = createApp({ db, webDist, estimateMeal: createMealEstimator() });
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[startup] DB ${databasePath} (TZ=${process.env.TZ ?? "system"})`);
