@@ -1,14 +1,11 @@
-import type { DayResponse, Entry, EntryItem, MealType } from "@calorie-tracker/shared";
+import type { DayResponse, Entry, EntryItem } from "@calorie-tracker/shared";
+import { useState } from "react";
+import { EntryMenu } from "@/components/entry-menu";
+import { ItemEditDrawer } from "@/components/item-edit-drawer";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const mealLabels: Record<MealType, string> = {
-  breakfast: "Breakfast",
-  lunch: "Lunch",
-  dinner: "Dinner",
-  snack: "Snack",
-};
-
-const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+import { fmt, mealLabels } from "@/lib/meals";
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
@@ -54,7 +51,10 @@ function EntryCard({ entry }: { entry: Entry }) {
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground italic">{entry.raw_text}</p>
         </div>
-        <span className="shrink-0 font-semibold tabular-nums">{fmt(entry.calories)} kcal</span>
+        <div className="flex shrink-0 items-start gap-1">
+          <span className="font-semibold tabular-nums">{fmt(entry.calories)} kcal</span>
+          <EntryMenu entry={entry} />
+        </div>
       </header>
       <ul className="divide-y px-4 pb-1">
         {entry.items.map((item) => (
@@ -91,16 +91,44 @@ function EntrySkeleton() {
 }
 
 function ItemRow({ item }: { item: EntryItem }) {
+  const [editing, setEditing] = useState(false);
+
   return (
-    <li className="flex min-h-11 items-center justify-between gap-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate">{item.name}</p>
+    // The row button stretches over the whole <li> (after:inset-0); the badge sits above it (z-10) so it stays tappable.
+    <li className="relative flex min-h-11 items-center justify-between gap-2 py-2">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="min-w-0 flex-1 text-left outline-none after:absolute after:inset-0 focus-visible:after:rounded-md focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+        aria-label={`Edit ${item.name}`}
+      >
+        <p className="flex items-baseline gap-2">
+          <span className="truncate">{item.name}</span>
+          {item.edited && <span className="shrink-0 text-xs text-muted-foreground italic">edited</span>}
+        </p>
         <p className="truncate text-sm text-muted-foreground">{item.portion}</p>
         <p className="text-xs text-muted-foreground tabular-nums">
           P {fmt(item.protein_g)}g · C {fmt(item.carbs_g)}g · F {fmt(item.fat_g)}g
         </p>
-      </div>
+      </button>
+      {item.confidence === "low" && <LowConfidenceBadge assumption={item.assumption} />}
       <span className="shrink-0 tabular-nums">{fmt(item.calories)}</span>
+      <ItemEditDrawer item={item} open={editing} onOpenChange={setEditing} />
     </li>
+  );
+}
+
+/** Amber "low" badge; tapping it explains the assumption behind the estimate. */
+function LowConfidenceBadge({ assumption }: { assumption: string | null }) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label="Why is this a low-confidence estimate?"
+        className="relative z-10 -my-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        <Badge variant="warning">low</Badge>
+      </PopoverTrigger>
+      <PopoverContent className="text-sm">{assumption ?? "The model wasn't confident in this estimate."}</PopoverContent>
+    </Popover>
   );
 }

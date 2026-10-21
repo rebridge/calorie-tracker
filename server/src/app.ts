@@ -5,14 +5,20 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import {
   CreateEntryRequestSchema,
   LocalDateSchema,
+  UpdateEntryRequestSchema,
+  UpdateItemRequestSchema,
   type DayResponse,
+  type DeleteEntryResponse,
+  type DeleteItemResponse,
   type Entry,
   type HealthResponse,
+  type UpdateEntryResponse,
+  type UpdateItemResponse,
 } from "@calorie-tracker/shared";
 import { sql } from "drizzle-orm";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import type { Db } from "./db/index.js";
-import { createEntry, getDay } from "./entries.js";
+import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
 import { resolveMealType } from "./meal-type.js";
 import { localTime, today } from "./today.js";
 
@@ -94,6 +100,45 @@ export function createApp({
     if (!date) return c.json({ error: "invalid_date", reason: "Use YYYY-MM-DD or 'today', not in the future" }, 400);
     return c.json(getDay(db, date) satisfies DayResponse);
   });
+  /** A positive integer id from the path; anything else can't match a row. */
+  const parseId = (param: string) => (/^[1-9]\d*$/.test(param) ? Number(param) : null);
+  const notFound = (what: string) => ({ error: "not_found", reason: `${what} not found` });
+  const invalid = (reason: string) => ({ error: "invalid_request", reason });
+
+  api.patch("/items/:id", async (c) => {
+    const id = parseId(c.req.param("id"));
+    const body = UpdateItemRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (id === null) return c.json(notFound("Item"), 404);
+    if (!body.success) return c.json(invalid(body.error.message), 400);
+    const result = updateItem(db, id, body.data);
+    if (!result) return c.json(notFound("Item"), 404);
+    return c.json(result satisfies UpdateItemResponse);
+  });
+
+  api.delete("/items/:id", (c) => {
+    const id = parseId(c.req.param("id"));
+    const result = id === null ? undefined : deleteItem(db, id);
+    if (!result) return c.json(notFound("Item"), 404);
+    return c.json(result satisfies DeleteItemResponse);
+  });
+
+  api.patch("/entries/:id", async (c) => {
+    const id = parseId(c.req.param("id"));
+    const body = UpdateEntryRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (id === null) return c.json(notFound("Entry"), 404);
+    if (!body.success) return c.json(invalid(body.error.message), 400);
+    const result = updateEntry(db, id, body.data);
+    if (!result) return c.json(notFound("Entry"), 404);
+    return c.json(result satisfies UpdateEntryResponse);
+  });
+
+  api.delete("/entries/:id", (c) => {
+    const id = parseId(c.req.param("id"));
+    const result = id === null ? undefined : deleteEntry(db, id);
+    if (!result) return c.json(notFound("Entry"), 404);
+    return c.json(result satisfies DeleteEntryResponse);
+  });
+
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
