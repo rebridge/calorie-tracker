@@ -1,0 +1,82 @@
+import type { DayResponse } from "@calorie-tracker/shared";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { WeightDrawer } from "@/components/weight-drawer";
+import { useDeleteWeight } from "@/hooks/use-weight";
+import { fmt } from "@/lib/meals";
+
+/** That day's weight with edit and delete, or a prompt to log one. The trend chart joins it in task 11. */
+export function WeightCard({ day }: { day: DayResponse }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const deleteWeight = useDeleteWeight(day.date);
+  const { weight } = day;
+
+  return (
+    <section aria-label="Weight" className="rounded-xl border bg-card p-4 text-card-foreground shadow-xs">
+      <h2 className="text-sm font-medium text-muted-foreground">Weight</h2>
+      {weight ? (
+        <div className="mt-1 flex items-center justify-between gap-3">
+          <p className="flex items-baseline gap-2 tabular-nums">
+            <span className="text-3xl leading-none font-bold">{fmt(weight.weight_lb)}</span>
+            <span className="text-sm font-medium text-muted-foreground">lb</span>
+          </p>
+          <div className="-mr-2 flex shrink-0 gap-1">
+            <Button variant="ghost" size="icon" className="size-11" aria-label="Edit weight" onClick={() => setEditOpen(true)}>
+              <Pencil />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-11 text-destructive hover:text-destructive"
+              aria-label="Delete weight"
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" className="mt-2 h-11 w-full justify-start text-base" onClick={() => setEditOpen(true)}>
+          <Plus /> Log today's weight
+        </Button>
+      )}
+
+      <WeightDrawer date={day.date} weight={weight} open={editOpen} onOpenChange={setEditOpen} />
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this weight?</AlertDialogTitle>
+            <AlertDialogDescription>{weight ? `${fmt(weight.weight_lb)} lb` : "This weight"} will be removed.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={deleteWeight.isPending}
+              onClick={(e) => {
+                // Keep the dialog open until the request settles.
+                e.preventDefault();
+                deleteWeight.mutate(undefined, { onSettled: () => setConfirmOpen(false) });
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  );
+}
