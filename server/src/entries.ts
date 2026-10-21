@@ -17,6 +17,8 @@ import { getGoals } from "./settings.js";
 import { getWeight } from "./weights.js";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+/** The model's numbers aren't range-checked by its schema; a negative amount is nonsense, so floor it at 0. */
+const nonNegative = (n: number) => Math.max(0, n);
 
 function sum(rows: Macros[]): Macros {
   const total = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
@@ -93,10 +95,10 @@ export function createEntry(
           entryId: entry.id,
           name: i.name,
           portion: i.portion,
-          calories: Math.round(i.calories),
-          proteinG: round1(i.protein_g),
-          carbsG: round1(i.carbs_g),
-          fatG: round1(i.fat_g),
+          calories: Math.round(nonNegative(i.calories)),
+          proteinG: round1(nonNegative(i.protein_g)),
+          carbsG: round1(nonNegative(i.carbs_g)),
+          fatG: round1(nonNegative(i.fat_g)),
           confidence: i.confidence,
           assumption: i.assumption,
         })),

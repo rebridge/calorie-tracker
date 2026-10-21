@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { MODEL } from "./claude.js";
 import type { Db } from "./db/index.js";
 import { settings } from "./db/schema.js";
+import { firstIssue } from "./first-issue.js";
 
 /** The current goals; also embedded in every day response. */
 export function getGoals(db: Db): Settings {
@@ -34,11 +35,7 @@ export function settingsRoutes(db: Db) {
 
   routes.put("/settings", async (c) => {
     const body = SettingsSchema.safeParse(await c.req.json().catch(() => null));
-    if (!body.success) {
-      const issue = body.error.issues[0]!;
-      const field = issue.path.join(".");
-      return c.json({ error: "invalid_request", reason: field ? `${field}: ${issue.message}` : issue.message }, 400);
-    }
+    if (!body.success) return c.json({ error: "invalid_request", reason: firstIssue(body.error) }, 400);
     const g = body.data;
     db.update(settings)
       .set({

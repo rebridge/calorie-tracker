@@ -1,4 +1,4 @@
-import { formatShortDate, MEAL_TYPES, type CreateEntryRequest, type MealType } from "@calorie-tracker/shared";
+import { formatShortDate, MAX_ENTRY_TEXT_LENGTH, MEAL_TYPES, type CreateEntryRequest, type MealType } from "@calorie-tracker/shared";
 import { ArrowUp, LoaderCircle } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -109,6 +109,7 @@ export function Composer({ date = "today" }: { date?: string }) {
               submit();
             }
           }}
+          maxLength={MAX_ENTRY_TEXT_LENGTH}
           placeholder={placeholder}
           aria-label={placeholder}
           enterKeyHint="enter"

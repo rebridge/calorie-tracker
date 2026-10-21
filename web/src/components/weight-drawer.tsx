@@ -1,4 +1,4 @@
-import type { Weight } from "@calorie-tracker/shared";
+import { MAX_WEIGHT_LB, type Weight } from "@calorie-tracker/shared";
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDeleteWeight, useSaveWeight } from "@/hooks/use-weight";
 
-/** A positive number in lb (comma decimals from some keyboards are fine), or null if the text isn't one. */
+/** A positive number in lb, up to the server's limit (comma decimals from some keyboards are fine), or null if the text isn't one. */
 function parseWeight(text: string): number | null {
   const n = Number(text.trim().replace(",", "."));
-  return text.trim() !== "" && Number.isFinite(n) && n > 0 ? n : null;
+  return text.trim() !== "" && Number.isFinite(n) && n > 0 && n <= MAX_WEIGHT_LB ? n : null;
 }
 
 /**

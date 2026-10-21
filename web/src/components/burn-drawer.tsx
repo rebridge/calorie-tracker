@@ -89,8 +89,14 @@ function BurnForm({ burn, date, close }: { burn?: Burn; date?: string; close: ()
             value={calories}
             onChange={(e) => setCalories(e.target.value)}
             aria-invalid={calories !== "" && !valid}
+            aria-describedby={calories !== "" && !valid ? "burn-calories-error" : undefined}
             className="h-11 tabular-nums"
           />
+          {calories !== "" && !valid && (
+            <p id="burn-calories-error" className="text-sm text-destructive">
+              Whole number, please
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="burn-note">Note (optional)</Label>

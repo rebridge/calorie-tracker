@@ -6,7 +6,7 @@ import {
   type DeleteBurnResponse,
 } from "@calorie-tracker/shared";
 import { asc, eq } from "drizzle-orm";
-import type { ZodError } from "zod";
+import { firstIssue } from "./first-issue.js";
 import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
 import { burns } from "./db/schema.js";
@@ -26,13 +26,6 @@ export function getBurns(db: Db, date: string): Burn[] {
     .orderBy(asc(burns.createdAt), asc(burns.id))
     .all()
     .map(toBurn);
-}
-
-/** The first validation problem as "field: message", for a readable 400. */
-function firstIssue(error: ZodError) {
-  const issue = error.issues[0]!;
-  const field = issue.path.join(".");
-  return field ? `${field}: ${issue.message}` : issue.message;
 }
 
 /** Blank notes are stored as no note. */

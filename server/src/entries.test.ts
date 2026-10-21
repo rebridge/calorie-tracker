@@ -120,6 +120,22 @@ describe("POST /api/entries", () => {
     expect(handle.db.select().from(entryItems).all()).toHaveLength(3);
   });
 
+  it("stores raw_text exactly as typed, untrimmed", async () => {
+    const text = "  2 eggs\n";
+    const entry = (await (await post({ text })).json()) as Entry;
+    expect(entry.raw_text).toBe(text);
+    expect(handle.db.select().from(entries).all()[0]!.rawText).toBe(text);
+  });
+
+  it("floors negative numbers from the model at 0 and keeps the raw response", async () => {
+    nextMeal = { ...breakfast, items: [item("Weird", -50, -1, -2.5, -0.1), item("Fine", 10, 1, 1, 1)] };
+    const entry = (await (await post({ text: "weird" })).json()) as Entry;
+    expect(entry.items[0]).toMatchObject({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+    expect(entry).toMatchObject({ calories: 10, protein_g: 1, carbs_g: 1, fat_g: 1 });
+    const [row] = handle.db.select().from(entries).all();
+    expect(JSON.parse(row!.modelResponse).parsed_output.items[0].calories).toBe(-50);
+  });
+
   it("falls back to the time of day when no meal is mentioned", async () => {
     nextMeal = { ...breakfast, meal_type: null };
     clock = new Date("2026-10-13T22:05:00Z"); // 18:05 local
@@ -271,6 +287,33 @@ describe("POST /api/entries failures", () => {
     expect(res.status).toBe(502);
     expect(((await res.json()) as { error: string }).error).toBe("model_error");
     expect(rowCounts()).toEqual({ entries: 0, items: 0 });
+  });
+
+  it("accepts text of exactly 2000 characters", async () => {
+    expect((await post({ text: "a".repeat(2000) })).status).toBe(201);
+  });
+
+  it("returns 400 with a readable reason for text over 2000 characters, without calling the model", async () => {
+    const res = await post({ text: "a".repeat(2001) });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_request", reason: "text: Too long: 2000 characters max" });
+    expect(estimateMeal).not.toHaveBeenCalled();
+    expect(rowCounts()).toEqual({ entries: 0, items: 0 });
+  });
+
+  it.each(["", "   ", "\n\t "])("returns 400 for blank text %j", async (text) => {
+    const res = await post({ text });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "invalid_request", reason: "text: Describe what you ate" });
+    expect(estimateMeal).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 with a 'field: message' reason, not raw Zod JSON, for a bad body", async () => {
+    const res = await post({ text: "2 eggs", meal_type: "brunch" });
+    expect(res.status).toBe(400);
+    const { reason } = (await res.json()) as { reason: string };
+    expect(reason).toMatch(/^meal_type: /);
+    expect(reason).not.toContain("[");
   });
 
   it("returns 400 for a body that isn't JSON", async () => {
