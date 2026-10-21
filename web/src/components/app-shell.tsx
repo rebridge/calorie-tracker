@@ -35,21 +35,45 @@ const isTextField = (el: EventTarget | null) =>
  * Sets `data-kb` on <html> while a text field is focused on a touch device. CSS drops the tab bar then
  * (see `--tabbar-h` in index.css), so the pinned composer sits right above the keyboard instead of
  * leaving a tab bar's worth of dead space or being pushed off-screen.
+ *
+ * Tapping a chip or button blurs the field just before the click. Dropping the flag right then would move
+ * the pinned composer ~56px up under the finger and the click would land elsewhere, so the removal waits
+ * for that click (or a short timeout if the blur never leads to one).
  */
 function useKeyboardFlag() {
   useEffect(() => {
     const touch = window.matchMedia("(pointer: coarse)");
     const root = document.documentElement;
-    const onFocusIn = (e: FocusEvent) => {
-      if (touch.matches && isTextField(e.target)) root.dataset.kb = "";
+    let pending: number | undefined;
+    const release = () => {
+      window.clearTimeout(pending);
+      pending = undefined;
+      delete root.dataset.kb;
     };
-    const onFocusOut = () => delete root.dataset.kb;
+    const onFocusIn = (e: FocusEvent) => {
+      if (!touch.matches || !isTextField(e.target)) return;
+      window.clearTimeout(pending);
+      pending = undefined;
+      root.dataset.kb = "";
+    };
+    const onFocusOut = () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(release, 400);
+    };
+    // After the click's own handlers have run, so a drawer it opens can move focus into its input first.
+    const onClick = () => {
+      if (pending === undefined) return;
+      window.clearTimeout(pending);
+      pending = window.setTimeout(release, 0);
+    };
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
+    document.addEventListener("click", onClick);
     return () => {
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
-      onFocusOut();
+      document.removeEventListener("click", onClick);
+      release();
     };
   }, []);
 }
