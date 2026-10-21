@@ -14,9 +14,13 @@ export function useDay(date: string) {
   });
 }
 
+/** Lets other components (e.g. the log's skeleton card) see when an entry is being estimated. */
+export const createEntryKey = ["createEntry"];
+
 export function useCreateEntry() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: createEntryKey,
     mutationFn: (body: CreateEntryRequest) => apiPost("/api/entries", body, EntrySchema),
     onSuccess: (entry) =>
       Promise.all([
