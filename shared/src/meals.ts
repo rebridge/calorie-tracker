@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { BurnSchema } from "./burns.js";
+import { LocalDateSchema } from "./dates.js";
+import { SettingsSchema } from "./settings.js";
+import { WeightSchema } from "./weights.js";
 
 export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 export const MealTypeSchema = z.enum(MEAL_TYPES);
@@ -6,9 +10,6 @@ export type MealType = z.infer<typeof MealTypeSchema>;
 
 export const ConfidenceSchema = z.enum(["high", "medium", "low"]);
 export type Confidence = z.infer<typeof ConfidenceSchema>;
-
-/** YYYY-MM-DD that is also a real calendar date (rejects 2026-02-30). */
-export const LocalDateSchema = z.iso.date();
 
 /** Claude's structured output for one submission (spec §4). */
 export const MealSchema = z.object({
@@ -74,11 +75,27 @@ export const MealGroupSchema = z.object({
 });
 export type MealGroup = z.infer<typeof MealGroupSchema>;
 
+/** Day totals: calories eaten and burned, and the macros eaten. */
+export const DayTotalsSchema = z.object({
+  eaten_kcal: z.number(),
+  burned_kcal: z.number(),
+  protein_g: z.number(),
+  carbs_g: z.number(),
+  fat_g: z.number(),
+});
+export type DayTotals = z.infer<typeof DayTotalsSchema>;
+
+/** `GET /api/day/:date`. Burns and weight are filled in by tasks 07 and 08; the shape is final. */
 export const DayResponseSchema = z.object({
+  /** The resolved YYYY-MM-DD, so a request for `today` also says which day that was. */
   date: LocalDateSchema,
   /** Always all four meals, Breakfast → Lunch → Dinner → Snack; newest entry first within each. */
   meals: z.array(MealGroupSchema),
-  totals: MacrosSchema,
+  burns: z.array(BurnSchema),
+  weight: WeightSchema.nullable(),
+  /** The current goals, even for past days (goal history isn't stored). */
+  goals: SettingsSchema,
+  totals: DayTotalsSchema,
 });
 export type DayResponse = z.infer<typeof DayResponseSchema>;
 

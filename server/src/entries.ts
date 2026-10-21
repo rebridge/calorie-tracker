@@ -10,8 +10,11 @@ import {
 } from "@calorie-tracker/shared";
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import type { Estimate } from "./claude.js";
+import { getBurns } from "./burns.js";
 import type { Db } from "./db/index.js";
 import { entries, entryItems } from "./db/schema.js";
+import { getGoals } from "./settings.js";
+import { getWeight } from "./weights.js";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -160,7 +163,7 @@ export function deleteEntry(db: Db, id: number) {
   return row && { local_date: row.localDate };
 }
 
-/** One day's entries grouped by meal, with subtotals and totals derived from the items. */
+/** One day's entries grouped by meal, plus burns, weight, goals and totals derived by query. */
 export function getDay(db: Db, date: string): DayResponse {
   const entryRows = db
     .select()
@@ -195,5 +198,21 @@ export function getDay(db: Db, date: string): DayResponse {
     return { meal_type, calories: sum(mealEntries).calories, entries: mealEntries };
   });
 
-  return { date, meals, totals: sum(dayEntries) };
+  const burns = getBurns(db, date);
+  const eaten = sum(dayEntries);
+
+  return {
+    date,
+    meals,
+    burns,
+    weight: getWeight(db, date),
+    goals: getGoals(db),
+    totals: {
+      eaten_kcal: eaten.calories,
+      burned_kcal: burns.reduce((total, b) => total + b.calories, 0),
+      protein_g: eaten.protein_g,
+      carbs_g: eaten.carbs_g,
+      fat_g: eaten.fat_g,
+    },
+  };
 }

@@ -53,6 +53,12 @@ export function Composer() {
         submit();
       }}
     >
+      {/* Quick-action chips above the input; hidden while empty. */}
+      <div className="mb-2 flex gap-2 empty:hidden">
+        {/* Task 07: <AddBurnedChip /> */}
+
+        {/* Task 08: <AddWeightChip /> */}
+      </div>
       <div className="flex items-end gap-2">
         <Textarea
           ref={textarea}
