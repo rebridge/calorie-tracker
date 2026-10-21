@@ -96,7 +96,7 @@ describe("PATCH /api/items/:id", () => {
     const updated = day.meals.find((m) => m.meal_type === "snack")!.entries[0]!;
     expect(updated.calories).toBe(182 + 300 + 2);
     expect(updated.items.map((i) => i.edited)).toEqual([false, true, false]);
-    expect(day.totals.calories).toBe(484);
+    expect(day.totals.eaten_kcal).toBe(484);
     expect(rows().items.find((r) => r.id === target.id)?.edited).toBe(true);
   });
 
@@ -174,7 +174,7 @@ describe("DELETE /api/items/:id", () => {
     expect(rows()).toEqual({ entries: [], items: [] });
     const day = await getDay();
     expect(day.meals.every((m) => m.entries.length === 0)).toBe(true);
-    expect(day.totals.calories).toBe(0);
+    expect(day.totals.eaten_kcal).toBe(0);
   });
 
   it("only deletes the entry that ran out of items", async () => {
@@ -250,7 +250,7 @@ describe("DELETE /api/entries/:id", () => {
     // No orphans: every remaining item belongs to a remaining entry.
     expect(left.items).toHaveLength(3);
     expect(left.items.every((i) => i.entryId === keep.id)).toBe(true);
-    expect((await getDay()).totals.calories).toBe(402);
+    expect((await getDay()).totals.eaten_kcal).toBe(402);
   });
 
   it("returns 404 for a missing entry and for a second delete", async () => {

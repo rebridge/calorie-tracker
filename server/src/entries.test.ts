@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { DayResponse, Entry, Meal } from "@calorie-tracker/shared";
+import { DayResponseSchema, type DayResponse, type Entry, type Meal } from "@calorie-tracker/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import { ModelError, type MealEstimator } from "./claude.js";
 import { openDb } from "./db/index.js";
-import { entries, entryItems } from "./db/schema.js";
+import { entries, entryItems, settings } from "./db/schema.js";
 
 const item = (name: string, calories: number, p: number, c: number, f: number) => ({
   name,
@@ -234,16 +234,39 @@ describe("GET /api/day/:date", () => {
     expect(l!.calories).toBe(650);
     expect(d!.entries).toEqual([]);
     expect(s!.calories).toBe(0);
-    expect(body.totals).toEqual({ calories: 1454, protein_g: 67.4, carbs_g: 144.8, fat_g: 63.9 });
+    expect(body.totals).toEqual({ eaten_kcal: 1454, burned_kcal: 0, protein_g: 67.4, carbs_g: 144.8, fat_g: 63.9 });
 
     expect((await getDay("2026-10-13")).body).toEqual(body);
+  });
+
+  it("has the final response shape: date, meals, burns, weight, goals and totals", async () => {
+    const { body } = await getDay("today");
+    expect(Object.keys(body).sort()).toEqual(["burns", "date", "goals", "meals", "totals", "weight"]);
+    expect(DayResponseSchema.safeParse(body).success).toBe(true);
+    // Burns and weight are empty until tasks 07 and 08.
+    expect(body.burns).toEqual([]);
+    expect(body.weight).toBeNull();
+    expect(body.goals).toEqual({ calorie_goal: 2000, protein_goal_g: 150, carbs_goal_g: 200, fat_goal_g: 65 });
+  });
+
+  it("reflects changed goals in the day response", async () => {
+    const goals = { calorie_goal: 1800, protein_goal_g: 160, carbs_goal_g: 150, fat_goal_g: 55 };
+    const put = await app.request("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(goals),
+    });
+    expect(put.status).toBe(200);
+    expect((await getDay("today")).body.goals).toEqual(goals);
+    expect((await getDay("2026-10-01")).body.goals).toEqual(goals);
+    handle.db.update(settings).set({ calorieGoal: 2000, proteinGoalG: 150, carbsGoalG: 200, fatGoalG: 65 }).run();
   });
 
   it("returns an empty day with zero totals", async () => {
     const { status, body } = await getDay("2026-10-01");
     expect(status).toBe(200);
     expect(body.meals.every((m) => m.entries.length === 0)).toBe(true);
-    expect(body.totals).toEqual({ calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+    expect(body.totals).toEqual({ eaten_kcal: 0, burned_kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
   });
 
   it.each(["2026-10-14", "2026-13-01", "2026-02-30", "yesterday", "20261013"])("rejects %s with 400", async (date) => {
