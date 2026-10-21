@@ -1,5 +1,8 @@
 import { CalendarDays, NotebookPen, Settings } from "lucide-react";
+import { Suspense, useEffect } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
@@ -13,8 +16,47 @@ const titles: Record<string, string> = {
   "/settings": "Settings",
 };
 
+/** Fallback while a lazily loaded page's code downloads. */
+function PageLoading() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading page">
+      <Skeleton className="h-40 rounded-xl" />
+      <Skeleton className="h-32 rounded-xl" />
+    </div>
+  );
+}
+
+/** Text-entry elements: focusing one raises the on-screen keyboard on a phone. */
+const isTextField = (el: EventTarget | null) =>
+  el instanceof HTMLTextAreaElement ||
+  (el instanceof HTMLInputElement && !["button", "checkbox", "radio", "submit", "range"].includes(el.type));
+
+/**
+ * Sets `data-kb` on <html> while a text field is focused on a touch device. CSS drops the tab bar then
+ * (see `--tabbar-h` in index.css), so the pinned composer sits right above the keyboard instead of
+ * leaving a tab bar's worth of dead space or being pushed off-screen.
+ */
+function useKeyboardFlag() {
+  useEffect(() => {
+    const touch = window.matchMedia("(pointer: coarse)");
+    const root = document.documentElement;
+    const onFocusIn = (e: FocusEvent) => {
+      if (touch.matches && isTextField(e.target)) root.dataset.kb = "";
+    };
+    const onFocusOut = () => delete root.dataset.kb;
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      onFocusOut();
+    };
+  }, []);
+}
+
 export function AppShell() {
   const { pathname } = useLocation();
+  useKeyboardFlag();
   const title = titles[pathname] ?? (pathname.startsWith("/day") ? "Day" : "Calories");
 
   return (
@@ -37,11 +79,16 @@ export function AppShell() {
 
       <main className="px-safe flex flex-1 flex-col">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col p-4">
-          <Outlet />
+          {/* Keyed by the first path segment so a failed page recovers when you tab away, but /day/:date keeps its state. */}
+          <ErrorBoundary key={pathname.split("/")[1]}>
+            <Suspense fallback={<PageLoading />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
 
-      <nav className="pb-safe px-safe sticky bottom-0 z-10 border-t bg-background/90 backdrop-blur">
+      <nav className="pb-safe px-safe sticky bottom-0 z-10 border-t bg-background/90 backdrop-blur in-data-kb:hidden">
         <ul className="mx-auto flex max-w-md">
           {tabs.map(({ to, label, icon: Icon, end }) => (
             <li key={to} className="flex-1">

@@ -1,8 +1,10 @@
+import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { createMealEstimator } from "./claude.js";
-import { openDb, type Db } from "./db/index.js";
+import { openDb } from "./db/index.js";
+import { shutdown } from "./shutdown.js";
 
 function fail(message: string): never {
   console.error(`\n[startup] FATAL: ${message}\n`);
@@ -17,9 +19,9 @@ const port = Number(process.env.PORT ?? 8080);
 const databasePath = process.env.DATABASE_PATH ?? fileURLToPath(new URL("../../data/calories.db", import.meta.url));
 const webDist = process.env.WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url));
 
-let db: Db;
+let opened: ReturnType<typeof openDb>;
 try {
-  ({ db } = openDb(databasePath));
+  opened = openDb(databasePath);
 } catch (err) {
   const code = (err as NodeJS.ErrnoException).code;
   const hint =
@@ -29,9 +31,30 @@ try {
   fail(`could not open database at ${databasePath}: ${(err as Error).message}.${hint}`);
 }
 
+const { db, sqlite } = opened;
 const app = createApp({ db, webDist, estimateMeal: createMealEstimator() });
 
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[startup] DB ${databasePath} (TZ=${process.env.TZ ?? "system"})`);
   console.log(`[startup] listening on http://0.0.0.0:${info.port}`);
 });
+
+// `docker stop` sends SIGTERM: finish in-flight requests, fold the WAL into calories.db, then exit.
+let stopping = false;
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`[shutdown] ${signal}: closing server and database`);
+    shutdown({ server: server as Server, sqlite }).then(
+      () => {
+        console.log("[shutdown] done");
+        process.exit(0);
+      },
+      (err) => {
+        console.error("[shutdown] failed:", err);
+        process.exit(1);
+      },
+    );
+  });
+}

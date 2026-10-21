@@ -95,7 +95,7 @@ function GoalsForm({ settings }: { settings: SettingsResponse }) {
 }
 
 export function SettingsPage() {
-  const { data, isPending, isError } = useSettings();
+  const { data, isPending, isError, refetch, isFetching } = useSettings();
 
   if (isPending) {
     return (
@@ -108,9 +108,12 @@ export function SettingsPage() {
   }
   if (isError) {
     return (
-      <p role="alert" className="text-destructive">
-        Couldn't load settings. Check your connection and reload.
-      </p>
+      <div role="alert" className="space-y-3 py-12 text-center">
+        <p className="text-destructive">Couldn't load settings. Check your connection and try again.</p>
+        <Button variant="outline" className="h-11" onClick={() => refetch()} disabled={isFetching}>
+          Try again
+        </Button>
+      </div>
     );
   }
 
