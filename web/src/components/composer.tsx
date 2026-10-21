@@ -1,6 +1,7 @@
 import { ArrowUp, LoaderCircle } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AddBurnedChip } from "@/components/add-burned-chip";
 import { AddWeightChip } from "@/components/add-weight-chip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,7 +57,7 @@ export function Composer() {
     >
       {/* Quick-action chips above the input; hidden while empty. */}
       <div className="mb-2 flex gap-2 empty:hidden">
-        {/* Task 07: <AddBurnedChip /> */}
+        <AddBurnedChip />
 
         <AddWeightChip />
       </div>

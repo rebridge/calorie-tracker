@@ -243,7 +243,7 @@ describe("GET /api/day/:date", () => {
     const { body } = await getDay("today");
     expect(Object.keys(body).sort()).toEqual(["burns", "date", "goals", "meals", "totals", "weight"]);
     expect(DayResponseSchema.safeParse(body).success).toBe(true);
-    // Burns and weight are empty until tasks 07 and 08.
+    // A day with nothing logged has no burns and no weight.
     expect(body.burns).toEqual([]);
     expect(body.weight).toBeNull();
     expect(body.goals).toEqual({ calorie_goal: 2000, protein_goal_g: 150, carbs_goal_g: 200, fat_goal_g: 65 });
