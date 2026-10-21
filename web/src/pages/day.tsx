@@ -1,5 +1,6 @@
 import { useIsMutating } from "@tanstack/react-query";
 import { useParams } from "react-router";
+import { BurnsList } from "@/components/burns-list";
 import { Composer } from "@/components/composer";
 import { HeaderCard, MacroBars } from "@/components/day-summary";
 import { MealLog } from "@/components/meal-log";
@@ -35,7 +36,9 @@ export function DayPage() {
             <MealLog day={day.data} pending={estimating} />
 
             {/* Slots for the follow-on tasks: each adds one component here and nothing else on this page. */}
-            <div className="empty:hidden">{/* Task 07: <BurnsList day={day.data} /> */}</div>
+            <div className="empty:hidden">
+              <BurnsList day={day.data} />
+            </div>
 
             <div className="empty:hidden">{/* Task 08: <WeightCard day={day.data} /> */}</div>
           </>

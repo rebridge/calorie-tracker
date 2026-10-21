@@ -16,6 +16,7 @@ import {
   type UpdateItemResponse,
 } from "@calorie-tracker/shared";
 import { sql } from "drizzle-orm";
+import { burnRoutes } from "./burns.js";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import type { Db } from "./db/index.js";
 import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
@@ -140,6 +141,7 @@ export function createApp({
     return c.json(result satisfies DeleteEntryResponse);
   });
 
+  api.route("/", burnRoutes(db, now));
   api.route("/", settingsRoutes(db));
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.

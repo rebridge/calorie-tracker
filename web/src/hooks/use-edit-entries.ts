@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { apiDelete, apiPatch } from "@/lib/api";
 
 /** Every mutation response names the affected day; refresh that day's query (and "today", which may be the same day). */
-function useInvalidateDay() {
+export function useInvalidateDay() {
   const queryClient = useQueryClient();
   return ({ local_date }: { local_date: string }) =>
     Promise.all([

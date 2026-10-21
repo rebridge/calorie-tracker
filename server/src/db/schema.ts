@@ -46,3 +46,16 @@ export const entryItems = sqliteTable(
   },
   (t) => [index("entry_items_entry_id_idx").on(t.entryId)],
 );
+
+// Manual calories-burned entries; they add to the day's budget.
+export const burns = sqliteTable(
+  "burns",
+  {
+    id: integer("id").primaryKey(),
+    localDate: text("local_date").notNull(),
+    calories: integer("calories").notNull(),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("burns_local_date_idx").on(t.localDate)],
+);
