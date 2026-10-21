@@ -20,3 +20,24 @@ export type PutWeightResponse = z.infer<typeof PutWeightResponseSchema>;
 
 export const DeleteWeightResponseSchema = z.object({ local_date: LocalDateSchema });
 export type DeleteWeightResponse = z.infer<typeof DeleteWeightResponseSchema>;
+
+/** `GET /api/weights?range=…`: how far back the trend looks. */
+export const WeightRangeSchema = z.enum(["30d", "90d", "1y"]);
+export type WeightRange = z.infer<typeof WeightRangeSchema>;
+export const DEFAULT_WEIGHT_RANGE: WeightRange = "30d";
+
+/** Days back from today that each range starts at (a year is 365 days). */
+export const WEIGHT_RANGE_DAYS: Record<WeightRange, number> = { "30d": 30, "90d": 90, "1y": 365 };
+
+/**
+ * `GET /api/weights`: the raw readings from `from` through `today` (inclusive), and their trailing 7-day average.
+ * `today` is the server's today (the chart's x-axis end), so the client never decides where the range stops.
+ */
+export const WeightsResponseSchema = z.object({
+  range: WeightRangeSchema,
+  from: LocalDateSchema,
+  today: LocalDateSchema,
+  points: z.array(z.object({ date: LocalDateSchema, weight_lb: z.number() })),
+  moving_avg: z.array(z.object({ date: LocalDateSchema, avg_lb: z.number() })),
+});
+export type WeightsResponse = z.infer<typeof WeightsResponseSchema>;

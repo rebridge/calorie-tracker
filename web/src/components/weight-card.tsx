@@ -1,6 +1,6 @@
 import { formatShortDate, type DayResponse } from "@calorie-tracker/shared";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,12 +12,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WeightDrawer } from "@/components/weight-drawer";
 import { useDeleteWeight } from "@/hooks/use-weight";
 import { fmt } from "@/lib/meals";
 
+// Recharts is most of the chart's weight, so it loads as its own chunk after the card first shows.
+const WeightTrendChart = lazy(() =>
+  import("@/components/weight-trend-chart").then((m) => ({ default: m.WeightTrendChart })),
+);
+
 /**
- * That day's weight with edit and delete, or a prompt to log one. The trend chart joins it in task 11.
+ * That day's weight with edit and delete, or a prompt to log one, above the weight trend chart.
  * `today` is the server's today (YYYY-MM-DD), so the prompt can name a past day.
  */
 export function WeightCard({ day, today }: { day: DayResponse; today: string }) {
@@ -55,6 +61,10 @@ export function WeightCard({ day, today }: { day: DayResponse; today: string }) 
           <Plus /> {day.date === today ? "Log today's weight" : `Log a weight for ${formatShortDate(day.date, today)}`}
         </Button>
       )}
+
+      <Suspense fallback={<Skeleton className="mt-4 h-72 w-full" />}>
+        <WeightTrendChart date={day.date} />
+      </Suspense>
 
       <WeightDrawer date={day.date} weight={weight} open={editOpen} onOpenChange={setEditOpen} />
 
