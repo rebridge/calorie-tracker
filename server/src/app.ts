@@ -14,6 +14,7 @@ import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import type { Db } from "./db/index.js";
 import { createEntry, getDay } from "./entries.js";
 import { resolveMealType } from "./meal-type.js";
+import { settingsRoutes } from "./settings.js";
 import { localTime, today } from "./today.js";
 
 export function createApp({
@@ -94,6 +95,7 @@ export function createApp({
     if (!date) return c.json({ error: "invalid_date", reason: "Use YYYY-MM-DD or 'today', not in the future" }, 400);
     return c.json(getDay(db, date) satisfies DayResponse);
   });
+  api.route("/", settingsRoutes(db));
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
