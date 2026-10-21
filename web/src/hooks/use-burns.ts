@@ -11,6 +11,7 @@ import { useInvalidateDay } from "@/hooks/use-edit-entries";
 
 const onError = (what: string) => (err: Error) => toast.error(`Couldn't ${what}: ${err.message}`);
 
+/** `body.date` is the day to add to (YYYY-MM-DD); omitted means today. */
 export function useCreateBurn() {
   const invalidateDay = useInvalidateDay();
   return useMutation({

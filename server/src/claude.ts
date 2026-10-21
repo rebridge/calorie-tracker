@@ -38,10 +38,17 @@ export class ModelError extends Error {
  * Turns a free-text meal description into structured items. Swapped for a fake in tests.
  * Rejects with a `ModelError` when the model gives nothing usable.
  */
-export type MealEstimator = (input: { text: string; localTime: string }) => Promise<Estimate>;
+export type MealEstimator = (input: EstimateInput) => Promise<Estimate>;
 
-export function userMessage({ text, localTime }: { text: string; localTime: string }) {
-  return `Local time: ${localTime}\n\n${text}`;
+/**
+ * What the model is told about when the meal was eaten: today's local time, or for a backdated entry
+ * the day's label ("Mon, Oct 13") and no time, since the time it's logged says nothing about the meal.
+ */
+export type EstimateInput = { text: string } & ({ localTime: string } | { pastDay: string });
+
+export function userMessage(input: EstimateInput) {
+  const context = "localTime" in input ? `Local time: ${input.localTime}` : `Logging for a past day (${input.pastDay})`;
+  return `${context}\n\n${input.text}`;
 }
 
 export function createMealEstimator(client: Pick<Anthropic, "messages"> = new Anthropic()): MealEstimator {

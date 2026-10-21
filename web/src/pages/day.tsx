@@ -1,5 +1,5 @@
 import { addDays, LocalDateSchema } from "@calorie-tracker/shared";
-import { useIsMutating, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { BurnsList } from "@/components/burns-list";
@@ -10,7 +10,7 @@ import { MealLog } from "@/components/meal-log";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeightCard } from "@/components/weight-card";
-import { createEntryKey, dayQueryOptions, useDay } from "@/hooks/use-day";
+import { dayQueryOptions, useDay, useIsEstimating } from "@/hooks/use-day";
 import { useSwipe } from "@/hooks/use-swipe";
 import { ApiError } from "@/lib/api";
 
@@ -25,12 +25,13 @@ export function DayPage() {
   const queryClient = useQueryClient();
   const today = useDay("today");
   const day = useDay(param ?? "today"); // the same query as `today` when there's no param
-  const estimating = useIsMutating({ mutationKey: createEntryKey }) > 0;
+  const estimating = useIsEstimating(param);
 
   const todayDate = today.data?.date;
   // The date shown in the bar; unknown while today is loading, and absent for a malformed URL.
   const viewed = param === undefined ? todayDate : LocalDateSchema.safeParse(param).success ? param : undefined;
   const loadedDate = day.data?.date;
+  const composerDate = param === undefined ? "today" : viewed && todayDate && viewed <= todayDate && !day.isError ? viewed : undefined;
 
   function goTo(date: string) {
     navigate(date === todayDate ? "/day" : `/day/${date}`);
@@ -70,7 +71,7 @@ export function DayPage() {
           <div key={day.data.date} className="space-y-4">
             <HeaderCard day={day.data} />
             <MacroBars day={day.data} />
-            <MealLog day={day.data} pending={estimating && param === undefined} />
+            <MealLog day={day.data} pending={estimating} />
 
             {/* Slots for the follow-on tasks: each adds one component here and nothing else on this page. */}
             <div className="empty:hidden">
@@ -81,8 +82,8 @@ export function DayPage() {
           </div>
         )}
       </div>
-      {/* The composer still saves to today, so it only shows there until backdating (task 10) gives it a `date`. */}
-      {param === undefined && <Composer />}
+      {/* Saves to the viewed day. Hidden for a malformed or future date, which the page itself refuses. */}
+      {composerDate && <Composer key={composerDate} date={composerDate} />}
     </div>
   );
 }

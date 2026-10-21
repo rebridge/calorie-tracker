@@ -22,7 +22,10 @@ export function mealTypeForTime(time: string): MealType {
   return meal;
 }
 
-/** Request's meal_type wins, then Claude's, then the time-of-day fallback. */
+/**
+ * Request's meal_type wins, then Claude's, then the time-of-day fallback.
+ * `localTime` is today's local HH:MM, or null for a past day, where the time of day says nothing and it's a snack.
+ */
 export function resolveMealType({
   requested,
   fromModel,
@@ -30,7 +33,7 @@ export function resolveMealType({
 }: {
   requested: MealType | null | undefined;
   fromModel: MealType | null;
-  localTime: string;
+  localTime: string | null;
 }): MealType {
-  return requested ?? fromModel ?? mealTypeForTime(localTime);
+  return requested ?? fromModel ?? (localTime === null ? "snack" : mealTypeForTime(localTime));
 }

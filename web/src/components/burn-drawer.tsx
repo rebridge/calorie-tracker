@@ -15,14 +15,17 @@ function parseCalories(text: string): number | null {
 }
 
 /**
- * Bottom sheet for a burn: pass `burn` to edit or delete it, omit it to add a new one (today, decided by the server).
+ * Bottom sheet for a burn: pass `burn` to edit or delete it, omit it to add a new one.
+ * A new burn goes to `date` (YYYY-MM-DD), or today (decided by the server) when that's omitted.
  */
 export function BurnDrawer({
   burn,
+  date,
   open,
   onOpenChange,
 }: {
   burn?: Burn;
+  date?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -30,13 +33,13 @@ export function BurnDrawer({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         {/* Mounted only while open, so the form starts from the saved values every time. */}
-        <BurnForm burn={burn} close={() => onOpenChange(false)} />
+        <BurnForm burn={burn} date={date} close={() => onOpenChange(false)} />
       </DrawerContent>
     </Drawer>
   );
 }
 
-function BurnForm({ burn, close }: { burn?: Burn; close: () => void }) {
+function BurnForm({ burn, date, close }: { burn?: Burn; date?: string; close: () => void }) {
   const [calories, setCalories] = useState(burn ? String(burn.calories) : "");
   const [note, setNote] = useState(burn?.note ?? "");
   const createBurn = useCreateBurn();
@@ -50,7 +53,7 @@ function BurnForm({ burn, close }: { burn?: Burn; close: () => void }) {
 
   function save() {
     if (parsed === null || busy) return;
-    if (!burn) return createBurn.mutate({ calories: parsed, note: note.trim() || null }, { onSuccess: close });
+    if (!burn) return createBurn.mutate({ calories: parsed, note: note.trim() || null, date }, { onSuccess: close });
     // Only changed fields are sent; saving without edits just closes.
     const patch: { calories?: number; note?: string | null } = {};
     if (parsed !== burn.calories) patch.calories = parsed;

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import { MODEL, ModelError, SYSTEM_PROMPT, createMealEstimator } from "./claude.js";
+import { MODEL, ModelError, SYSTEM_PROMPT, createMealEstimator, userMessage } from "./claude.js";
 
 const input = { text: "black coffee", localTime: "08:14" };
 
@@ -45,6 +45,36 @@ describe("createMealEstimator", () => {
     });
     expect(params.thinking).toBeUndefined();
     expect(result).toEqual({ meal, model: MODEL, response, inputTokens: 412, outputTokens: 230 });
+  });
+});
+
+describe("userMessage", () => {
+  it("leads with the local time for today", () => {
+    expect(userMessage({ text: "black coffee", localTime: "08:14" })).toBe("Local time: 08:14\n\nblack coffee");
+  });
+
+  it("names the day and carries no time for a past day", () => {
+    const message = userMessage({ text: "chicken burrito", pastDay: "Mon, Oct 13" });
+    expect(message).toBe("Logging for a past day (Mon, Oct 13)\n\nchicken burrito");
+    expect(message).not.toMatch(/Local time|\d:\d\d/);
+  });
+});
+
+describe("createMealEstimator for a past day", () => {
+  it("sends the past-day message to the model", async () => {
+    const parse = vi.fn().mockResolvedValue({
+      model: MODEL,
+      stop_reason: "end_turn",
+      usage: { input_tokens: 1, output_tokens: 1 },
+      parsed_output: meal,
+    });
+    const estimate = createMealEstimator({ messages: { parse } } as unknown as Pick<Anthropic, "messages">);
+
+    await estimate({ text: "chicken burrito", pastDay: "Mon, Oct 13" });
+
+    expect(parse.mock.calls[0]![0].messages).toEqual([
+      { role: "user", content: "Logging for a past day (Mon, Oct 13)\n\nchicken burrito" },
+    ]);
   });
 });
 

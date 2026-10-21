@@ -4,7 +4,7 @@ import {
   type CreateEntryRequest,
   type DayResponse,
 } from "@calorie-tracker/shared";
-import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { ApiError, apiGet, apiPost } from "@/lib/api";
 
 /**
@@ -50,6 +50,18 @@ export function invalidateDay(queryClient: QueryClient, localDate: string) {
 
 /** Lets other components (e.g. the log's skeleton card) see when an entry is being estimated. */
 export const createEntryKey = ["createEntry"];
+
+/**
+ * Whether an entry for this day is being estimated. `date` is a YYYY-MM-DD, or undefined for today
+ * (today's submissions carry no date), so a submission for one day never shows a skeleton on another.
+ */
+export function useIsEstimating(date?: string) {
+  const pending = useMutationState({
+    filters: { mutationKey: createEntryKey, status: "pending" },
+    select: (mutation) => (mutation.state.variables as CreateEntryRequest).date,
+  });
+  return pending.some((pendingDate) => pendingDate === date);
+}
 
 export function useCreateEntry() {
   const queryClient = useQueryClient();

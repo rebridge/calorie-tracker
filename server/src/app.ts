@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import {
   CreateEntryRequestSchema,
+  formatShortDate,
   UpdateEntryRequestSchema,
   UpdateItemRequestSchema,
   type DayResponse,
@@ -51,16 +52,19 @@ export function createApp({
     const { text, date, meal_type } = body.data;
 
     const instant = now();
-    const localDate = today(instant);
-    // Backdating arrives in task 10; until then only today is accepted.
-    if (date !== undefined && date !== localDate) {
-      return c.json({ error: "invalid_request", reason: "Entries can only be logged for today" }, 400);
-    }
+    // Defaults to today; null means the date is in the future.
+    const localDate = parseDateParam(date ?? "today", instant);
+    if (!localDate) return c.json(invalidDateBody, 400);
 
-    const time = localTime(instant);
+    // A past day gets no local time: the clock says when it was logged, not when it was eaten.
+    const current = today(instant);
+    const time = localDate === current ? localTime(instant) : null;
     let estimate: Estimate;
     try {
-      estimate = await estimateMeal({ text, localTime: time });
+      estimate = await estimateMeal({
+        text,
+        ...(time === null ? { pastDay: formatShortDate(localDate, current) } : { localTime: time }),
+      });
     } catch (err) {
       const failure = err instanceof ModelError ? err : new ModelError("api_error", "The model call failed", {}, { cause: err });
       console.error("[entries] model error, nothing saved", {
