@@ -23,6 +23,15 @@ export function apiGet<T extends z.ZodType>(path: string, schema: T): Promise<z.
   return request(path, schema);
 }
 
+/** PUTs a JSON body and validates the response against a shared Zod schema. */
+export function apiPut<T extends z.ZodType>(path: string, body: unknown, schema: T): Promise<z.infer<T>> {
+  return request(path, schema, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 /** POSTs a JSON body and validates the response against a shared Zod schema. */
 export function apiPost<T extends z.ZodType>(path: string, body: unknown, schema: T): Promise<z.infer<T>> {
   return request(path, schema, {
@@ -30,4 +39,18 @@ export function apiPost<T extends z.ZodType>(path: string, body: unknown, schema
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+/** PATCHes a JSON body and validates the response against a shared Zod schema. */
+export function apiPatch<T extends z.ZodType>(path: string, body: unknown, schema: T): Promise<z.infer<T>> {
+  return request(path, schema, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+/** DELETEs a resource and validates the response against a shared Zod schema. */
+export function apiDelete<T extends z.ZodType>(path: string, schema: T): Promise<z.infer<T>> {
+  return request(path, schema, { method: "DELETE" });
 }

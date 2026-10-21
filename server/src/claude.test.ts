@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import { MODEL, ModelError, SYSTEM_PROMPT, createMealEstimator } from "./claude.js";
+import { MODEL, ModelError, SYSTEM_PROMPT, createMealEstimator, userMessage } from "./claude.js";
 
 const input = { text: "black coffee", localTime: "08:14" };
 
@@ -48,6 +48,36 @@ describe("createMealEstimator", () => {
   });
 });
 
+describe("userMessage", () => {
+  it("leads with the local time for today", () => {
+    expect(userMessage({ text: "black coffee", localTime: "08:14" })).toBe("Local time: 08:14\n\nblack coffee");
+  });
+
+  it("names the day and carries no time for a past day", () => {
+    const message = userMessage({ text: "chicken burrito", pastDay: "Mon, Oct 13" });
+    expect(message).toBe("Logging for a past day (Mon, Oct 13)\n\nchicken burrito");
+    expect(message).not.toMatch(/Local time|\d:\d\d/);
+  });
+});
+
+describe("createMealEstimator for a past day", () => {
+  it("sends the past-day message to the model", async () => {
+    const parse = vi.fn().mockResolvedValue({
+      model: MODEL,
+      stop_reason: "end_turn",
+      usage: { input_tokens: 1, output_tokens: 1 },
+      parsed_output: meal,
+    });
+    const estimate = createMealEstimator({ messages: { parse } } as unknown as Pick<Anthropic, "messages">);
+
+    await estimate({ text: "chicken burrito", pastDay: "Mon, Oct 13" });
+
+    expect(parse.mock.calls[0]![0].messages).toEqual([
+      { role: "user", content: "Logging for a past day (Mon, Oct 13)\n\nchicken burrito" },
+    ]);
+  });
+});
+
 /** A real SDK client whose HTTP layer is faked, so stop reasons, parsing and API errors go through the SDK. */
 function fakeApi(respond: () => Response) {
   const fetch = vi.fn(async () => respond());
@@ -83,6 +113,33 @@ describe("createMealEstimator failures", () => {
   it("parses a valid reply through the real SDK", async () => {
     const { estimate } = fakeApi(() => message(JSON.stringify(meal)));
     expect((await estimate(input)).meal).toEqual(meal);
+  });
+
+  it("tolerates enum values the SDK's JSON schema can't enforce, and stores the reply as sent", async () => {
+    const raw = JSON.stringify({
+      ...meal,
+      meal_type: " Breakfast ",
+      items: [{ ...meal.items[0], confidence: "HIGH" }],
+    });
+    const { estimate } = fakeApi(() => message(raw));
+    const result = await estimate(input);
+    expect(result.meal.meal_type).toBe("breakfast");
+    expect(result.meal.items[0]!.confidence).toBe("high");
+    expect(JSON.stringify(result.response)).toContain(JSON.stringify(raw).slice(1, -1));
+  });
+
+  it("treats an unknown meal_type as null and an unknown confidence as low", async () => {
+    const { estimate } = fakeApi(() =>
+      message(JSON.stringify({ ...meal, meal_type: "brunch", items: [{ ...meal.items[0], confidence: "very sure" }] })),
+    );
+    const result = await estimate(input);
+    expect(result.meal.meal_type).toBeNull();
+    expect(result.meal.items[0]!.confidence).toBe("low");
+  });
+
+  it("still rejects a non-string confidence", async () => {
+    const { estimate } = fakeApi(() => message(JSON.stringify({ ...meal, items: [{ ...meal.items[0], confidence: 3 }] })));
+    expect((await failure(estimate(input))).kind).toBe("schema");
   });
 
   it("rejects a refusal", async () => {

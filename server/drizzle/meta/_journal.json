@@ -15,6 +15,20 @@
       "when": 1792272741669,
       "tag": "0001_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792544575614,
+      "tag": "0002_weights",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1792544903338,
+      "tag": "0003_burns",
+      "breakpoints": true
     }
   ]
 }

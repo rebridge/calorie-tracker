@@ -5,13 +5,20 @@ import {
   type EntryItem,
   type Macros,
   type MealType,
+  type UpdateEntryRequest,
+  type UpdateItemRequest,
 } from "@calorie-tracker/shared";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import type { Estimate } from "./claude.js";
+import { getBurns } from "./burns.js";
 import type { Db } from "./db/index.js";
 import { entries, entryItems } from "./db/schema.js";
+import { getGoals } from "./settings.js";
+import { getWeight } from "./weights.js";
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+/** The model's numbers aren't range-checked by its schema; a negative amount is nonsense, so floor it at 0. */
+const nonNegative = (n: number) => Math.max(0, n);
 
 function sum(rows: Macros[]): Macros {
   const total = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
@@ -88,10 +95,10 @@ export function createEntry(
           entryId: entry.id,
           name: i.name,
           portion: i.portion,
-          calories: Math.round(i.calories),
-          proteinG: round1(i.protein_g),
-          carbsG: round1(i.carbs_g),
-          fatG: round1(i.fat_g),
+          calories: Math.round(nonNegative(i.calories)),
+          proteinG: round1(nonNegative(i.protein_g)),
+          carbsG: round1(nonNegative(i.carbs_g)),
+          fatG: round1(nonNegative(i.fat_g)),
           confidence: i.confidence,
           assumption: i.assumption,
         })),
@@ -102,7 +109,63 @@ export function createEntry(
   });
 }
 
-/** One day's entries grouped by meal, with subtotals and totals derived from the items. */
+/** Edits an item and marks it edited. Undefined if the item doesn't exist. */
+export function updateItem(db: Db, id: number, patch: UpdateItemRequest) {
+  return db.transaction((tx) => {
+    const row = tx
+      .update(entryItems)
+      .set({
+        ...(patch.name !== undefined && { name: patch.name }),
+        ...(patch.portion !== undefined && { portion: patch.portion }),
+        ...(patch.calories !== undefined && { calories: Math.round(patch.calories) }),
+        ...(patch.protein_g !== undefined && { proteinG: round1(patch.protein_g) }),
+        ...(patch.carbs_g !== undefined && { carbsG: round1(patch.carbs_g) }),
+        ...(patch.fat_g !== undefined && { fatG: round1(patch.fat_g) }),
+        edited: true,
+      })
+      .where(eq(entryItems.id, id))
+      .returning()
+      .get();
+    if (!row) return undefined;
+    const entry = tx.select({ localDate: entries.localDate }).from(entries).where(eq(entries.id, row.entryId)).get()!;
+    return { local_date: entry.localDate, item: toItem(row) };
+  });
+}
+
+/** Deletes an item, and its entry too when it was the last one. Undefined if the item doesn't exist. */
+export function deleteItem(db: Db, id: number) {
+  return db.transaction((tx) => {
+    const item = tx.select().from(entryItems).where(eq(entryItems.id, id)).get();
+    if (!item) return undefined;
+    const entry = tx.select().from(entries).where(eq(entries.id, item.entryId)).get()!;
+    tx.delete(entryItems).where(eq(entryItems.id, id)).run();
+    const { remaining } = tx
+      .select({ remaining: count() })
+      .from(entryItems)
+      .where(eq(entryItems.entryId, item.entryId))
+      .get()!;
+    if (remaining === 0) tx.delete(entries).where(eq(entries.id, item.entryId)).run();
+    return { local_date: entry.localDate, entry_deleted: remaining === 0 };
+  });
+}
+
+/** Changes an entry's meal type. Undefined if the entry doesn't exist. */
+export function updateEntry(db: Db, id: number, patch: UpdateEntryRequest) {
+  return db.transaction((tx) => {
+    const row = tx.update(entries).set({ mealType: patch.meal_type }).where(eq(entries.id, id)).returning().get();
+    if (!row) return undefined;
+    const items = tx.select().from(entryItems).where(eq(entryItems.entryId, id)).orderBy(asc(entryItems.id)).all();
+    return { local_date: row.localDate, entry: toEntry(row, items.map(toItem)) };
+  });
+}
+
+/** Deletes an entry; its items go with it via the foreign key cascade. Undefined if it doesn't exist. */
+export function deleteEntry(db: Db, id: number) {
+  const row = db.delete(entries).where(eq(entries.id, id)).returning({ localDate: entries.localDate }).get();
+  return row && { local_date: row.localDate };
+}
+
+/** One day's entries grouped by meal, plus burns, weight, goals and totals derived by query. */
 export function getDay(db: Db, date: string): DayResponse {
   const entryRows = db
     .select()
@@ -137,5 +200,21 @@ export function getDay(db: Db, date: string): DayResponse {
     return { meal_type, calories: sum(mealEntries).calories, entries: mealEntries };
   });
 
-  return { date, meals, totals: sum(dayEntries) };
+  const burns = getBurns(db, date);
+  const eaten = sum(dayEntries);
+
+  return {
+    date,
+    meals,
+    burns,
+    weight: getWeight(db, date),
+    goals: getGoals(db),
+    totals: {
+      eaten_kcal: eaten.calories,
+      burned_kcal: burns.reduce((total, b) => total + b.calories, 0),
+      protein_g: eaten.protein_g,
+      carbs_g: eaten.carbs_g,
+      fat_g: eaten.fat_g,
+    },
+  };
 }

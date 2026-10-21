@@ -32,3 +32,17 @@ describe("resolveMealType", () => {
     expect(resolveMealType({ requested: undefined, fromModel: null, localTime: "12:00" })).toBe("lunch");
   });
 });
+
+describe("resolveMealType for a past day (no local time)", () => {
+  it("prefers the request's meal_type", () => {
+    expect(resolveMealType({ requested: "lunch", fromModel: "dinner", localTime: null })).toBe("lunch");
+  });
+
+  it("then Claude's meal_type", () => {
+    expect(resolveMealType({ requested: undefined, fromModel: "dinner", localTime: null })).toBe("dinner");
+  });
+
+  it("then falls back to snack, not a time-of-day meal", () => {
+    expect(resolveMealType({ requested: undefined, fromModel: null, localTime: null })).toBe("snack");
+  });
+});

@@ -4,17 +4,28 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import {
   CreateEntryRequestSchema,
-  LocalDateSchema,
+  formatShortDate,
+  UpdateEntryRequestSchema,
+  UpdateItemRequestSchema,
   type DayResponse,
+  type DeleteEntryResponse,
+  type DeleteItemResponse,
   type Entry,
   type HealthResponse,
+  type UpdateEntryResponse,
+  type UpdateItemResponse,
 } from "@calorie-tracker/shared";
 import { sql } from "drizzle-orm";
+import { burnRoutes } from "./burns.js";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
+import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
-import { createEntry, getDay } from "./entries.js";
+import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
+import { firstIssue } from "./first-issue.js";
 import { resolveMealType } from "./meal-type.js";
+import { settingsRoutes } from "./settings.js";
 import { localTime, today } from "./today.js";
+import { weightRoutes } from "./weights.js";
 
 export function createApp({
   db,
@@ -30,13 +41,6 @@ export function createApp({
 }) {
   const app = new Hono();
 
-  /** Resolves `today` or a YYYY-MM-DD that isn't in the future; null if invalid. */
-  function parseDate(param: string): string | null {
-    const date = param === "today" ? today(now()) : param;
-    if (!LocalDateSchema.safeParse(date).success) return null;
-    return date > today(now()) ? null : date;
-  }
-
   const api = new Hono();
   api.get("/health", (c) => {
     db.run(sql`select 1`);
@@ -45,20 +49,23 @@ export function createApp({
 
   api.post("/entries", async (c) => {
     const body = CreateEntryRequestSchema.safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: "invalid_request", reason: body.error.message }, 400);
+    if (!body.success) return c.json({ error: "invalid_request", reason: firstIssue(body.error) }, 400);
     const { text, date, meal_type } = body.data;
 
     const instant = now();
-    const localDate = today(instant);
-    // Backdating arrives in task 10; until then only today is accepted.
-    if (date !== undefined && date !== localDate) {
-      return c.json({ error: "invalid_request", reason: "Entries can only be logged for today" }, 400);
-    }
+    // Defaults to today; null means the date is in the future.
+    const localDate = parseDateParam(date ?? "today", instant);
+    if (!localDate) return c.json(invalidDateBody, 400);
 
-    const time = localTime(instant);
+    // A past day gets no local time: the clock says when it was logged, not when it was eaten.
+    const current = today(instant);
+    const time = localDate === current ? localTime(instant) : null;
     let estimate: Estimate;
     try {
-      estimate = await estimateMeal({ text, localTime: time });
+      estimate = await estimateMeal({
+        text,
+        ...(time === null ? { pastDay: formatShortDate(localDate, current) } : { localTime: time }),
+      });
     } catch (err) {
       const failure = err instanceof ModelError ? err : new ModelError("api_error", "The model call failed", {}, { cause: err });
       console.error("[entries] model error, nothing saved", {
@@ -90,10 +97,52 @@ export function createApp({
   });
 
   api.get("/day/:date", (c) => {
-    const date = parseDate(c.req.param("date"));
-    if (!date) return c.json({ error: "invalid_date", reason: "Use YYYY-MM-DD or 'today', not in the future" }, 400);
+    const date = parseDateParam(c.req.param("date"), now());
+    if (!date) return c.json(invalidDateBody, 400);
     return c.json(getDay(db, date) satisfies DayResponse);
   });
+  /** A positive integer id from the path; anything else can't match a row. */
+  const parseId = (param: string) => (/^[1-9]\d*$/.test(param) ? Number(param) : null);
+  const notFound = (what: string) => ({ error: "not_found", reason: `${what} not found` });
+  const invalid = (reason: string) => ({ error: "invalid_request", reason });
+
+  api.patch("/items/:id", async (c) => {
+    const id = parseId(c.req.param("id"));
+    const body = UpdateItemRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (id === null) return c.json(notFound("Item"), 404);
+    if (!body.success) return c.json(invalid(firstIssue(body.error)), 400);
+    const result = updateItem(db, id, body.data);
+    if (!result) return c.json(notFound("Item"), 404);
+    return c.json(result satisfies UpdateItemResponse);
+  });
+
+  api.delete("/items/:id", (c) => {
+    const id = parseId(c.req.param("id"));
+    const result = id === null ? undefined : deleteItem(db, id);
+    if (!result) return c.json(notFound("Item"), 404);
+    return c.json(result satisfies DeleteItemResponse);
+  });
+
+  api.patch("/entries/:id", async (c) => {
+    const id = parseId(c.req.param("id"));
+    const body = UpdateEntryRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (id === null) return c.json(notFound("Entry"), 404);
+    if (!body.success) return c.json(invalid(firstIssue(body.error)), 400);
+    const result = updateEntry(db, id, body.data);
+    if (!result) return c.json(notFound("Entry"), 404);
+    return c.json(result satisfies UpdateEntryResponse);
+  });
+
+  api.delete("/entries/:id", (c) => {
+    const id = parseId(c.req.param("id"));
+    const result = id === null ? undefined : deleteEntry(db, id);
+    if (!result) return c.json(notFound("Entry"), 404);
+    return c.json(result satisfies DeleteEntryResponse);
+  });
+
+  api.route("/", burnRoutes(db, now));
+  api.route("/", settingsRoutes(db));
+  api.route("/", weightRoutes(db, now));
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

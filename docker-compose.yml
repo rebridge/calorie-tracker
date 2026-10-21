@@ -10,6 +10,11 @@ services:
       DATABASE_PATH: /data/calories.db
     volumes:
       - ./data:/data
+    # The server drains requests and checkpoints the SQLite WAL on SIGTERM, within ~8s.
+    stop_grace_period: 15s
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8080/api/health').then(r=>process.exit(r.ok?0:1))"]
       interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

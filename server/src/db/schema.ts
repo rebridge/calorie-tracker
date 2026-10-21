@@ -46,3 +46,23 @@ export const entryItems = sqliteTable(
   },
   (t) => [index("entry_items_entry_id_idx").on(t.entryId)],
 );
+
+// At most one per day: a new weight for the same day replaces the old one.
+export const weights = sqliteTable("weights", {
+  localDate: text("local_date").primaryKey(),
+  weightLb: real("weight_lb").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+// Manual calories-burned entries; they add to the day's budget.
+export const burns = sqliteTable(
+  "burns",
+  {
+    id: integer("id").primaryKey(),
+    localDate: text("local_date").notNull(),
+    calories: integer("calories").notNull(),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("burns_local_date_idx").on(t.localDate)],
+);
