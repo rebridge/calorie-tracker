@@ -7,9 +7,9 @@ import {
 } from "@calorie-tracker/shared";
 import { asc, eq } from "drizzle-orm";
 import type { ZodError } from "zod";
+import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
 import { burns } from "./db/schema.js";
-import { today } from "./today.js";
 
 type BurnRow = typeof burns.$inferSelect;
 
@@ -51,8 +51,9 @@ export function burnRoutes(db: Db, now: () => Date) {
     const body = CreateBurnRequestSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json(invalid(firstIssue(body.error)), 400);
     const instant = now();
-    const localDate = body.data.date ?? today(instant);
-    if (localDate > today(instant)) return c.json(invalid("Burns can't be logged for a future date"), 400);
+    // Defaults to today; null means the date is in the future.
+    const localDate = parseDateParam(body.data.date ?? "today", instant);
+    if (!localDate) return c.json(invalidDateBody, 400);
 
     const row = db
       .insert(burns)

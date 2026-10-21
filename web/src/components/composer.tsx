@@ -2,6 +2,7 @@ import { ArrowUp, LoaderCircle } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AddBurnedChip } from "@/components/add-burned-chip";
+import { AddWeightChip } from "@/components/add-weight-chip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateEntry } from "@/hooks/use-day";
@@ -58,7 +59,7 @@ export function Composer() {
       <div className="mb-2 flex gap-2 empty:hidden">
         <AddBurnedChip />
 
-        {/* Task 08: <AddWeightChip /> */}
+        <AddWeightChip />
       </div>
       <div className="flex items-end gap-2">
         <Textarea

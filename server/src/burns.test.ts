@@ -85,7 +85,7 @@ describe("POST /api/burns", () => {
   it("rejects a future date with 400 and saves nothing", async () => {
     const res = await send("POST", "/api/burns", { calories: 300, date: "2026-10-14" });
     expect(res.status).toBe(400);
-    expect(((await res.json()) as { error: string }).error).toBe("invalid_request");
+    expect(((await res.json()) as { error: string }).error).toBe("invalid_date");
     expect(rows()).toEqual([]);
   });
 

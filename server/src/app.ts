@@ -4,7 +4,6 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import {
   CreateEntryRequestSchema,
-  LocalDateSchema,
   UpdateEntryRequestSchema,
   UpdateItemRequestSchema,
   type DayResponse,
@@ -18,11 +17,13 @@ import {
 import { sql } from "drizzle-orm";
 import { burnRoutes } from "./burns.js";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
+import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
 import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
 import { resolveMealType } from "./meal-type.js";
 import { settingsRoutes } from "./settings.js";
 import { localTime, today } from "./today.js";
+import { weightRoutes } from "./weights.js";
 
 export function createApp({
   db,
@@ -37,13 +38,6 @@ export function createApp({
   now?: () => Date;
 }) {
   const app = new Hono();
-
-  /** Resolves `today` or a YYYY-MM-DD that isn't in the future; null if invalid. */
-  function parseDate(param: string): string | null {
-    const date = param === "today" ? today(now()) : param;
-    if (!LocalDateSchema.safeParse(date).success) return null;
-    return date > today(now()) ? null : date;
-  }
 
   const api = new Hono();
   api.get("/health", (c) => {
@@ -98,8 +92,8 @@ export function createApp({
   });
 
   api.get("/day/:date", (c) => {
-    const date = parseDate(c.req.param("date"));
-    if (!date) return c.json({ error: "invalid_date", reason: "Use YYYY-MM-DD or 'today', not in the future" }, 400);
+    const date = parseDateParam(c.req.param("date"), now());
+    if (!date) return c.json(invalidDateBody, 400);
     return c.json(getDay(db, date) satisfies DayResponse);
   });
   /** A positive integer id from the path; anything else can't match a row. */
@@ -143,6 +137,7 @@ export function createApp({
 
   api.route("/", burnRoutes(db, now));
   api.route("/", settingsRoutes(db));
+  api.route("/", weightRoutes(db, now));
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

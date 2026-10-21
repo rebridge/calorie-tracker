@@ -6,6 +6,7 @@ import { HeaderCard, MacroBars } from "@/components/day-summary";
 import { MealLog } from "@/components/meal-log";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WeightCard } from "@/components/weight-card";
 import { createEntryKey, useDay } from "@/hooks/use-day";
 
 /**
@@ -40,7 +41,7 @@ export function DayPage() {
               <BurnsList day={day.data} />
             </div>
 
-            <div className="empty:hidden">{/* Task 08: <WeightCard day={day.data} /> */}</div>
+            <div className="empty:hidden"><WeightCard day={day.data} /></div>
           </>
         )}
       </div>
