@@ -20,6 +20,7 @@ import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import type { Db } from "./db/index.js";
 import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
 import { resolveMealType } from "./meal-type.js";
+import { settingsRoutes } from "./settings.js";
 import { localTime, today } from "./today.js";
 
 export function createApp({
@@ -139,6 +140,7 @@ export function createApp({
     return c.json(result satisfies DeleteEntryResponse);
   });
 
+  api.route("/", settingsRoutes(db));
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.
   app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));

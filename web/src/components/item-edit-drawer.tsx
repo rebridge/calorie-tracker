@@ -94,12 +94,19 @@ function ItemForm({ item, close }: { item: EntryItem; close: () => void }) {
       <div className="grid min-h-0 grid-cols-2 gap-x-3 gap-y-4 overflow-y-auto px-4 pb-2">
         <div className="col-span-2 space-y-2">
           <Label htmlFor="item-name">Name</Label>
-          <Input id="item-name" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={name.trim() === ""} />
+          <Input
+            id="item-name"
+            className="h-11"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-invalid={name.trim() === ""}
+          />
         </div>
         <div className="col-span-2 space-y-2">
           <Label htmlFor="item-portion">Portion</Label>
           <Input
             id="item-portion"
+            className="h-11"
             value={portion}
             onChange={(e) => setPortion(e.target.value)}
             aria-invalid={portion.trim() === ""}
@@ -115,7 +122,7 @@ function ItemForm({ item, close }: { item: EntryItem; close: () => void }) {
               value={numbers[key]}
               onChange={(e) => setNumbers((prev) => ({ ...prev, [key]: e.target.value }))}
               aria-invalid={invalid.has(key)}
-              className="tabular-nums"
+              className="h-11 tabular-nums"
             />
           </div>
         ))}
