@@ -1,12 +1,11 @@
-import { useIsMutating } from "@tanstack/react-query";
 import { Composer } from "@/components/composer";
 import { HealthStatus } from "@/components/health-status";
 import { MealLog } from "@/components/meal-log";
-import { createEntryKey, useDay } from "@/hooks/use-day";
+import { useDay, useIsEstimating } from "@/hooks/use-day";
 
 export function LogPage() {
   const day = useDay("today");
-  const estimating = useIsMutating({ mutationKey: createEntryKey }) > 0;
+  const estimating = useIsEstimating();
 
   return (
     <div className="flex flex-1 flex-col">

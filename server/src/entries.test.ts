@@ -143,10 +143,76 @@ describe("POST /api/entries", () => {
     expect(estimateMeal).not.toHaveBeenCalled();
   });
 
-  it("rejects dates other than today for now", async () => {
-    expect((await post({ text: "x", date: "2026-10-12" })).status).toBe(400);
-    expect((await post({ text: "x", date: "2026-10-14" })).status).toBe(400);
+  it("sends today's local time to the model, and no date label", async () => {
+    await post({ text: "eggs", date: "2026-10-13" });
+    expect(estimateMeal).toHaveBeenCalledWith({ text: "eggs", localTime: "08:14" });
+  });
+});
+
+describe("POST /api/entries backdated", () => {
+  it("saves to the given past date with created_at = now and the requested meal_type", async () => {
+    const res = await post({ text: "chicken burrito", date: "2026-10-12", meal_type: "lunch" });
+    expect(res.status).toBe(201);
+    const entry = (await res.json()) as Entry;
+    expect(entry).toMatchObject({ local_date: "2026-10-12", meal_type: "lunch", raw_text: "chicken burrito" });
+    expect(entry.created_at).toBe("2026-10-13T12:14:00.000Z");
+
+    const [row] = handle.db.select().from(entries).all();
+    expect(row).toMatchObject({ localDate: "2026-10-12", createdAt: "2026-10-13T12:14:00.000Z" });
+    expect((await getDay("2026-10-12")).body.meals.find((m) => m.meal_type === "lunch")?.entries).toHaveLength(1);
+    expect((await getDay("2026-10-13")).body.totals.eaten_kcal).toBe(0);
+  });
+
+  it("tells the model the day, never a local time", async () => {
+    await post({ text: "chicken burrito", date: "2026-10-12" });
+    expect(estimateMeal).toHaveBeenCalledWith({ text: "chicken burrito", pastDay: "Mon, Oct 12" });
+    expect(estimateMeal.mock.calls[0]![0]).not.toHaveProperty("localTime");
+  });
+
+  it("includes the year for a day in another year", async () => {
+    await post({ text: "stew", date: "2025-12-31" });
+    expect(estimateMeal).toHaveBeenCalledWith({ text: "stew", pastDay: "Wed, Dec 31, 2025" });
+  });
+
+  it("uses Claude's meal_type when none is requested", async () => {
+    const entry = (await (await post({ text: "eggs for breakfast", date: "2026-10-12" })).json()) as Entry;
+    expect(entry.meal_type).toBe("breakfast");
+  });
+
+  it("falls back to snack, not the time of day, when nothing names the meal", async () => {
+    nextMeal = { ...breakfast, meal_type: null }; // 08:14 now would be breakfast
+    const entry = (await (await post({ text: "pasta", date: "2026-10-12" })).json()) as Entry;
+    expect(entry.meal_type).toBe("snack");
+  });
+
+  it("lets the request's meal_type override Claude's", async () => {
+    const entry = (await (await post({ text: "eggs", date: "2026-10-12", meal_type: "dinner" })).json()) as Entry;
+    expect(entry.meal_type).toBe("dinner");
+  });
+
+  it("accepts today's date as today", async () => {
+    const res = await post({ text: "x", date: "2026-10-13" });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as Entry).local_date).toBe("2026-10-13");
+  });
+
+  it("compares the date with the server's local today across UTC midnight", async () => {
+    clock = new Date("2026-10-14T02:30:00Z"); // 22:30 on Oct 13 in New York
     expect((await post({ text: "x", date: "2026-10-13" })).status).toBe(201);
+    expect((await post({ text: "x", date: "2026-10-14" })).status).toBe(400);
+  });
+
+  it.each(["2026-10-14", "2027-01-01", "2026-02-30", "yesterday", "today"])("rejects date %j with 400 and calls no model", async (date) => {
+    const res = await post({ text: "x", date });
+    expect(res.status).toBe(400);
+    expect(estimateMeal).not.toHaveBeenCalled();
+    expect(handle.db.select().from(entries).all()).toHaveLength(0);
+  });
+
+  it("still rejects a backdated non-food submission with 422 and saves nothing", async () => {
+    nextMeal = { meal_type: null, items: [], not_food_reason: "That's an exercise" };
+    expect((await post({ text: "ran 3 miles", date: "2026-10-12" })).status).toBe(422);
+    expect(handle.db.select().from(entries).all()).toHaveLength(0);
   });
 });
 
