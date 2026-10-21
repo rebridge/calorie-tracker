@@ -1,4 +1,4 @@
-import type { DayResponse } from "@calorie-tracker/shared";
+import { formatShortDate, type DayResponse } from "@calorie-tracker/shared";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -16,8 +16,11 @@ import { WeightDrawer } from "@/components/weight-drawer";
 import { useDeleteWeight } from "@/hooks/use-weight";
 import { fmt } from "@/lib/meals";
 
-/** That day's weight with edit and delete, or a prompt to log one. The trend chart joins it in task 11. */
-export function WeightCard({ day }: { day: DayResponse }) {
+/**
+ * That day's weight with edit and delete, or a prompt to log one. The trend chart joins it in task 11.
+ * `today` is the server's today (YYYY-MM-DD), so the prompt can name a past day.
+ */
+export function WeightCard({ day, today }: { day: DayResponse; today: string }) {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const deleteWeight = useDeleteWeight(day.date);
@@ -49,7 +52,7 @@ export function WeightCard({ day }: { day: DayResponse }) {
         </div>
       ) : (
         <Button variant="outline" className="mt-2 h-11 w-full justify-start text-base" onClick={() => setEditOpen(true)}>
-          <Plus /> Log today's weight
+          <Plus /> {day.date === today ? "Log today's weight" : `Log a weight for ${formatShortDate(day.date, today)}`}
         </Button>
       )}
 

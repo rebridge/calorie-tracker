@@ -5,17 +5,14 @@ import {
 } from "@calorie-tracker/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidateDay } from "@/hooks/use-day";
 import { apiDelete, apiPut } from "@/lib/api";
 
-/** Refresh the affected day, "today" (which may be the same day), and the weight chart queries (`['weights', range]`). */
+/** Refresh the affected day, "today" (unless that day is in the past), and the weight chart queries (`['weights', range]`). */
 function useInvalidateWeight() {
   const queryClient = useQueryClient();
   return ({ local_date }: { local_date: string }) =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["day", local_date] }),
-      queryClient.invalidateQueries({ queryKey: ["day", "today"] }),
-      queryClient.invalidateQueries({ queryKey: ["weights"] }),
-    ]);
+    Promise.all([invalidateDay(queryClient, local_date), queryClient.invalidateQueries({ queryKey: ["weights"] })]);
 }
 
 /** Logs or replaces a day's weight. `date` is YYYY-MM-DD or "today". */
