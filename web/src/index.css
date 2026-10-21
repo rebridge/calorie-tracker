@@ -24,6 +24,12 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  /* Weight trend: 1 = 7-day average, 2 = daily readings, 3 = the viewed-day marker. */
+  --chart-1: oklch(0.52 0.2 262);
+  --chart-2: oklch(0.62 0.03 262);
+  --chart-3: oklch(0.7 0.17 60);
+  --chart-4: oklch(0.6 0.118 184.704);
+  --chart-5: oklch(0.646 0.222 41.116);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +52,11 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.75 0.14 255);
+    --chart-2: oklch(0.65 0.03 262);
+    --chart-3: oklch(0.78 0.16 70);
+    --chart-4: oklch(0.696 0.17 162.48);
+    --chart-5: oklch(0.704 0.191 22.216);
   }
 }
 
@@ -72,6 +83,11 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 }
 
 @layer base {

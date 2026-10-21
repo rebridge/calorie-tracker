@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { DayResponse, DeleteWeightResponse, PutWeightResponse } from "@calorie-tracker/shared";
+import type { DayResponse, DeleteWeightResponse, PutWeightResponse, WeightsResponse } from "@calorie-tracker/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { openDb } from "./db/index.js";
@@ -149,5 +149,99 @@ describe("GET /api/day/:date date param", () => {
     const res = await app.request(`/api/day/${date}`);
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toBe("invalid_date");
+  });
+});
+
+describe("GET /api/weights", () => {
+  const getTrend = async (query = "") => {
+    const res = await app.request(`/api/weights${query}`);
+    return { res, body: (await res.json()) as WeightsResponse };
+  };
+  const seed = async (readings: [string, number][]) => {
+    for (const [date, weight_lb] of readings) await put(date, { weight_lb });
+  };
+
+  it("is empty but still names the range's end when there are no weights", async () => {
+    const { res, body } = await getTrend();
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ range: "30d", from: "2026-09-13", today: "2026-10-13", points: [], moving_avg: [] });
+  });
+
+  it("defaults to 30d, and each range starts that many days before today", async () => {
+    expect((await getTrend()).body.range).toBe("30d");
+    expect((await getTrend("?range=30d")).body.from).toBe("2026-09-13");
+    expect((await getTrend("?range=90d")).body.from).toBe("2026-07-15");
+    expect((await getTrend("?range=1y")).body.from).toBe("2025-10-13");
+    for (const range of ["30d", "90d", "1y"]) expect((await getTrend(`?range=${range}`)).body.today).toBe("2026-10-13");
+  });
+
+  it.each(["7d", "30", "", "all", "1Y"])("rejects range=%j with 400", async (range) => {
+    const res = await app.request(`/api/weights?range=${range}`);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; reason: string };
+    expect(body.error).toBe("invalid_request");
+    expect(body.reason).toContain("range");
+  });
+
+  it("takes today from the server's TZ, not UTC", async () => {
+    clock = new Date("2026-10-14T02:30:00Z"); // still Oct 13 in New York
+    expect((await getTrend()).body.today).toBe("2026-10-13");
+  });
+
+  it("returns points oldest first, only from the range start through today", async () => {
+    await seed([
+      ["2026-10-13", 182],
+      ["2026-09-13", 186], // exactly 30 days back: in
+      ["2026-09-12", 187], // one day too early: out of the points
+      ["2026-09-30", 184],
+    ]);
+    const { body } = await getTrend("?range=30d");
+    expect(body.points).toEqual([
+      { date: "2026-09-13", weight_lb: 186 },
+      { date: "2026-09-30", weight_lb: 184 },
+      { date: "2026-10-13", weight_lb: 182 },
+    ]);
+    // A longer range picks the older reading up.
+    expect((await getTrend("?range=90d")).body.points.map((p) => p.date)).toEqual([
+      "2026-09-12",
+      "2026-09-13",
+      "2026-09-30",
+      "2026-10-13",
+    ]);
+  });
+
+  it("gives the first point a full average from the 6 days before the range", async () => {
+    await seed([
+      ["2026-09-06", 190], // 7 days before the range start: outside the first window
+      ["2026-09-07", 188], // lead-in: the window for Sep 13 is Sep 7-13
+      ["2026-09-10", 186],
+      ["2026-09-13", 184], // first day of the 30d range
+      ["2026-09-14", 183],
+    ]);
+    const { body } = await getTrend("?range=30d");
+    expect(body.points.map((p) => p.date)).toEqual(["2026-09-13", "2026-09-14"]);
+    // Sep 13 averages Sep 7, 10, 13 = 186; Sep 14 (window Sep 8-14) averages 186, 184, 183.
+    expect(body.moving_avg).toEqual([
+      { date: "2026-09-13", avg_lb: 186 },
+      { date: "2026-09-14", avg_lb: 184.33 },
+    ]);
+  });
+
+  it("has one average per point, on the same dates", async () => {
+    await seed([
+      ["2026-10-01", 185],
+      ["2026-10-05", 184],
+      ["2026-10-13", 182],
+    ]);
+    const { body } = await getTrend();
+    expect(body.moving_avg.map((p) => p.date)).toEqual(body.points.map((p) => p.date));
+  });
+
+  it("reflects an edited or deleted weight immediately", async () => {
+    await seed([["2026-10-13", 182]]);
+    await put("today", { weight_lb: 181 });
+    expect((await getTrend()).body.points).toEqual([{ date: "2026-10-13", weight_lb: 181 }]);
+    await del("today");
+    expect((await getTrend()).body.points).toEqual([]);
   });
 });
