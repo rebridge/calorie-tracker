@@ -8,16 +8,13 @@ import {
 } from "@calorie-tracker/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidateDay } from "@/hooks/use-day";
 import { apiDelete, apiPatch } from "@/lib/api";
 
-/** Every mutation response names the affected day; refresh that day's query (and "today", which may be the same day). */
+/** Every mutation response names the affected day; refresh that day's query (and "today", unless that day is in the past). */
 export function useInvalidateDay() {
   const queryClient = useQueryClient();
-  return ({ local_date }: { local_date: string }) =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["day", local_date] }),
-      queryClient.invalidateQueries({ queryKey: ["day", "today"] }),
-    ]);
+  return ({ local_date }: { local_date: string }) => invalidateDay(queryClient, local_date);
 }
 
 const onError = (what: string) => (err: Error) => toast.error(`Couldn't ${what}: ${err.message}`);

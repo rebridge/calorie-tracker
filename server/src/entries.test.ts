@@ -262,6 +262,24 @@ describe("GET /api/day/:date", () => {
     handle.db.update(settings).set({ calorieGoal: 2000, proteinGoalG: 150, carbsGoalG: 200, fatGoalG: 65 }).run();
   });
 
+  it("returns a past day's own entries and totals, not today's", async () => {
+    clock = new Date("2026-10-10T16:00:00Z");
+    await post({ text: "last saturday" });
+    clock = new Date("2026-10-13T12:14:00Z");
+    await post({ text: "today one" });
+    await post({ text: "today two" });
+
+    const past = (await getDay("2026-10-10")).body;
+    const now = (await getDay("today")).body;
+    const texts = (day: DayResponse) => day.meals.flatMap((m) => m.entries.map((e) => e.raw_text));
+    expect(past.date).toBe("2026-10-10");
+    expect(texts(past)).toEqual(["last saturday"]);
+    expect(texts(now).sort()).toEqual(["today one", "today two"]);
+    expect(past.totals.eaten_kcal).toBe(past.meals.reduce((sum, m) => sum + m.calories, 0));
+    expect(now.totals.eaten_kcal).toBe(now.meals.reduce((sum, m) => sum + m.calories, 0));
+    expect(now.totals.eaten_kcal).toBe(2 * past.totals.eaten_kcal);
+  });
+
   it("returns an empty day with zero totals", async () => {
     const { status, body } = await getDay("2026-10-01");
     expect(status).toBe(200);
