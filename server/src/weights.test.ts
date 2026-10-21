@@ -87,6 +87,8 @@ describe("PUT /api/weights/:date", () => {
 
   it.each([
     ["zero", { weight_lb: 0 }],
+    ["absurdly heavy", { weight_lb: 99999 }],
+    ["just over the limit", { weight_lb: 1500.1 }],
     ["negative", { weight_lb: -3 }],
     ["a string", { weight_lb: "182" }],
     ["null", { weight_lb: null }],
@@ -98,6 +100,10 @@ describe("PUT /api/weights/:date", () => {
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toBe("invalid_request");
     expect(rows()).toEqual([]);
+  });
+
+  it("accepts the upper bound", async () => {
+    expect((await put("today", { weight_lb: 1500 })).status).toBe(200);
   });
 
   it("keeps the old weight when a replacement is invalid", async () => {

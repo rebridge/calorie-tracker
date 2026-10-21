@@ -8,12 +8,24 @@ export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 export const MealTypeSchema = z.enum(MEAL_TYPES);
 export type MealType = z.infer<typeof MealTypeSchema>;
 
-export const ConfidenceSchema = z.enum(["high", "medium", "low"]);
+export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
+export const ConfidenceSchema = z.enum(CONFIDENCE_LEVELS);
 export type Confidence = z.infer<typeof ConfidenceSchema>;
+
+/**
+ * The SDK's JSON schema carries enums only as a description, so the model can answer "Breakfast", "HIGH" or
+ * "brunch". Normalise instead of failing the whole submission: an unknown meal type becomes null (the
+ * time-of-day fallback applies), an unknown confidence becomes "low".
+ */
+const lenientEnum = <T extends string>(values: readonly T[], fallback: T | null) => (value: unknown) => {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim().toLowerCase();
+  return values.find((v) => v === normalized) ?? fallback;
+};
 
 /** Claude's structured output for one submission (spec §4). */
 export const MealSchema = z.object({
-  meal_type: MealTypeSchema.nullable(),
+  meal_type: z.preprocess(lenientEnum(MEAL_TYPES, null), MealTypeSchema.nullable()),
   items: z.array(
     z.object({
       name: z.string(),
@@ -22,7 +34,7 @@ export const MealSchema = z.object({
       protein_g: z.number(),
       carbs_g: z.number(),
       fat_g: z.number(),
-      confidence: ConfidenceSchema,
+      confidence: z.preprocess(lenientEnum(CONFIDENCE_LEVELS, "low"), ConfidenceSchema),
       assumption: z.string().nullable(),
     }),
   ),
@@ -31,8 +43,15 @@ export const MealSchema = z.object({
 });
 export type Meal = z.infer<typeof MealSchema>;
 
+/** Longest meal description accepted; it goes to the model as is. */
+export const MAX_ENTRY_TEXT_LENGTH = 2000;
+
 export const CreateEntryRequestSchema = z.object({
-  text: z.string().trim().min(1),
+  // Not trimmed: `raw_text` keeps exactly what was typed. Whitespace-only is still rejected.
+  text: z
+    .string()
+    .max(MAX_ENTRY_TEXT_LENGTH, `Too long: ${MAX_ENTRY_TEXT_LENGTH} characters max`)
+    .refine((text) => text.trim() !== "", "Describe what you ate"),
   date: LocalDateSchema.optional(),
   meal_type: MealTypeSchema.optional(),
 });

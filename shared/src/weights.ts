@@ -8,9 +8,12 @@ export const WeightSchema = z.object({
 });
 export type Weight = z.infer<typeof WeightSchema>;
 
+/** Heaviest weight accepted; anything above is a typo. */
+export const MAX_WEIGHT_LB = 1500;
+
 /** `PUT /api/weights/:date`. The date comes from the path (`YYYY-MM-DD` or `today`). */
 export const PutWeightRequestSchema = z.object({
-  weight_lb: z.number().positive(),
+  weight_lb: z.number().positive().max(MAX_WEIGHT_LB),
 });
 export type PutWeightRequest = z.infer<typeof PutWeightRequestSchema>;
 

@@ -143,6 +143,14 @@ describe("PATCH /api/items/:id", () => {
     expect(rows().items.some((i) => i.edited)).toBe(false);
   });
 
+  it("reports a bad item edit as 'field: message'", async () => {
+    const entry = await logMeal();
+    const res = await send("PATCH", `/api/items/${entry.items[0]!.id}`, { calories: -1 });
+    const { reason } = (await res.json()) as { reason: string };
+    expect(reason).toMatch(/^calories: /);
+    expect(reason).not.toContain("[");
+  });
+
   it("rejects a body that isn't JSON with 400", async () => {
     const entry = await logMeal();
     const res = await app.request(`/api/items/${entry.items[0]!.id}`, { method: "PATCH", body: "nope" });
@@ -232,6 +240,14 @@ describe("PATCH /api/entries/:id", () => {
     const res = await send("PATCH", `/api/entries/${entry.id}`, body);
     expect(res.status).toBe(400);
     expect(rows().entries[0]!.mealType).toBe("snack");
+  });
+
+  it("reports a bad meal_type as 'field: message'", async () => {
+    const entry = await logMeal();
+    const res = await send("PATCH", `/api/entries/${entry.id}`, { meal_type: "brunch" });
+    const { reason } = (await res.json()) as { reason: string };
+    expect(reason).toMatch(/^meal_type: /);
+    expect(reason).not.toContain("[");
   });
 });
 

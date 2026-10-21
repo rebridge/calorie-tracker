@@ -115,6 +115,33 @@ describe("createMealEstimator failures", () => {
     expect((await estimate(input)).meal).toEqual(meal);
   });
 
+  it("tolerates enum values the SDK's JSON schema can't enforce, and stores the reply as sent", async () => {
+    const raw = JSON.stringify({
+      ...meal,
+      meal_type: " Breakfast ",
+      items: [{ ...meal.items[0], confidence: "HIGH" }],
+    });
+    const { estimate } = fakeApi(() => message(raw));
+    const result = await estimate(input);
+    expect(result.meal.meal_type).toBe("breakfast");
+    expect(result.meal.items[0]!.confidence).toBe("high");
+    expect(JSON.stringify(result.response)).toContain(JSON.stringify(raw).slice(1, -1));
+  });
+
+  it("treats an unknown meal_type as null and an unknown confidence as low", async () => {
+    const { estimate } = fakeApi(() =>
+      message(JSON.stringify({ ...meal, meal_type: "brunch", items: [{ ...meal.items[0], confidence: "very sure" }] })),
+    );
+    const result = await estimate(input);
+    expect(result.meal.meal_type).toBeNull();
+    expect(result.meal.items[0]!.confidence).toBe("low");
+  });
+
+  it("still rejects a non-string confidence", async () => {
+    const { estimate } = fakeApi(() => message(JSON.stringify({ ...meal, items: [{ ...meal.items[0], confidence: 3 }] })));
+    expect((await failure(estimate(input))).kind).toBe("schema");
+  });
+
   it("rejects a refusal", async () => {
     const { estimate } = fakeApi(() => message("I can't help with that.", "refusal"));
     const err = await failure(estimate(input));

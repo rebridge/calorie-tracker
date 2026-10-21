@@ -14,6 +14,7 @@ import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
 import { weights } from "./db/schema.js";
+import { firstIssue } from "./first-issue.js";
 import { MOVING_AVG_DAYS, movingAverage } from "./moving-average.js";
 import { today } from "./today.js";
 
@@ -55,11 +56,7 @@ export function weightRoutes(db: Db, now: () => Date) {
     const date = parseDateParam(c.req.param("date"), now());
     if (!date) return c.json(invalidDateBody, 400);
     const body = PutWeightRequestSchema.safeParse(await c.req.json().catch(() => null));
-    if (!body.success) {
-      const issue = body.error.issues[0]!;
-      const field = issue.path.join(".");
-      return c.json({ error: "invalid_request", reason: field ? `${field}: ${issue.message}` : issue.message }, 400);
-    }
+    if (!body.success) return c.json({ error: "invalid_request", reason: firstIssue(body.error) }, 400);
     // A new weight for the same day replaces the old one, including its timestamp.
     const row = { weightLb: body.data.weight_lb, createdAt: now().toISOString() };
     db.insert(weights)

@@ -21,6 +21,7 @@ import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
 import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
+import { firstIssue } from "./first-issue.js";
 import { resolveMealType } from "./meal-type.js";
 import { settingsRoutes } from "./settings.js";
 import { localTime, today } from "./today.js";
@@ -48,7 +49,7 @@ export function createApp({
 
   api.post("/entries", async (c) => {
     const body = CreateEntryRequestSchema.safeParse(await c.req.json().catch(() => null));
-    if (!body.success) return c.json({ error: "invalid_request", reason: body.error.message }, 400);
+    if (!body.success) return c.json({ error: "invalid_request", reason: firstIssue(body.error) }, 400);
     const { text, date, meal_type } = body.data;
 
     const instant = now();
@@ -109,7 +110,7 @@ export function createApp({
     const id = parseId(c.req.param("id"));
     const body = UpdateItemRequestSchema.safeParse(await c.req.json().catch(() => null));
     if (id === null) return c.json(notFound("Item"), 404);
-    if (!body.success) return c.json(invalid(body.error.message), 400);
+    if (!body.success) return c.json(invalid(firstIssue(body.error)), 400);
     const result = updateItem(db, id, body.data);
     if (!result) return c.json(notFound("Item"), 404);
     return c.json(result satisfies UpdateItemResponse);
@@ -126,7 +127,7 @@ export function createApp({
     const id = parseId(c.req.param("id"));
     const body = UpdateEntryRequestSchema.safeParse(await c.req.json().catch(() => null));
     if (id === null) return c.json(notFound("Entry"), 404);
-    if (!body.success) return c.json(invalid(body.error.message), 400);
+    if (!body.success) return c.json(invalid(firstIssue(body.error)), 400);
     const result = updateEntry(db, id, body.data);
     if (!result) return c.json(notFound("Entry"), 404);
     return c.json(result satisfies UpdateEntryResponse);
