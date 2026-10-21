@@ -81,3 +81,39 @@ export const DayResponseSchema = z.object({
   totals: MacrosSchema,
 });
 export type DayResponse = z.infer<typeof DayResponseSchema>;
+
+const nonNegative = z.number().min(0);
+
+/** Partial edit of one item; at least one field is required. Any edit marks the item `edited`. */
+export const UpdateItemRequestSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    portion: z.string().trim().min(1),
+    calories: nonNegative,
+    protein_g: nonNegative,
+    carbs_g: nonNegative,
+    fat_g: nonNegative,
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, { message: "Provide at least one field to update" });
+export type UpdateItemRequest = z.infer<typeof UpdateItemRequestSchema>;
+
+export const UpdateEntryRequestSchema = z.object({ meal_type: MealTypeSchema });
+export type UpdateEntryRequest = z.infer<typeof UpdateEntryRequestSchema>;
+
+// Mutation responses carry `local_date` so the client knows which ['day', date] query to invalidate.
+export const UpdateItemResponseSchema = z.object({ local_date: LocalDateSchema, item: EntryItemSchema });
+export type UpdateItemResponse = z.infer<typeof UpdateItemResponseSchema>;
+
+export const UpdateEntryResponseSchema = z.object({ local_date: LocalDateSchema, entry: EntrySchema });
+export type UpdateEntryResponse = z.infer<typeof UpdateEntryResponseSchema>;
+
+export const DeleteItemResponseSchema = z.object({
+  local_date: LocalDateSchema,
+  /** True when that was the entry's last item, so the whole entry went too. */
+  entry_deleted: z.boolean(),
+});
+export type DeleteItemResponse = z.infer<typeof DeleteItemResponseSchema>;
+
+export const DeleteEntryResponseSchema = z.object({ local_date: LocalDateSchema });
+export type DeleteEntryResponse = z.infer<typeof DeleteEntryResponseSchema>;

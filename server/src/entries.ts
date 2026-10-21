@@ -5,8 +5,10 @@ import {
   type EntryItem,
   type Macros,
   type MealType,
+  type UpdateEntryRequest,
+  type UpdateItemRequest,
 } from "@calorie-tracker/shared";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
 import type { Estimate } from "./claude.js";
 import type { Db } from "./db/index.js";
 import { entries, entryItems } from "./db/schema.js";
@@ -100,6 +102,62 @@ export function createEntry(
       .all();
     return toEntry(entry, items.map(toItem));
   });
+}
+
+/** Edits an item and marks it edited. Undefined if the item doesn't exist. */
+export function updateItem(db: Db, id: number, patch: UpdateItemRequest) {
+  return db.transaction((tx) => {
+    const row = tx
+      .update(entryItems)
+      .set({
+        ...(patch.name !== undefined && { name: patch.name }),
+        ...(patch.portion !== undefined && { portion: patch.portion }),
+        ...(patch.calories !== undefined && { calories: Math.round(patch.calories) }),
+        ...(patch.protein_g !== undefined && { proteinG: round1(patch.protein_g) }),
+        ...(patch.carbs_g !== undefined && { carbsG: round1(patch.carbs_g) }),
+        ...(patch.fat_g !== undefined && { fatG: round1(patch.fat_g) }),
+        edited: true,
+      })
+      .where(eq(entryItems.id, id))
+      .returning()
+      .get();
+    if (!row) return undefined;
+    const entry = tx.select({ localDate: entries.localDate }).from(entries).where(eq(entries.id, row.entryId)).get()!;
+    return { local_date: entry.localDate, item: toItem(row) };
+  });
+}
+
+/** Deletes an item, and its entry too when it was the last one. Undefined if the item doesn't exist. */
+export function deleteItem(db: Db, id: number) {
+  return db.transaction((tx) => {
+    const item = tx.select().from(entryItems).where(eq(entryItems.id, id)).get();
+    if (!item) return undefined;
+    const entry = tx.select().from(entries).where(eq(entries.id, item.entryId)).get()!;
+    tx.delete(entryItems).where(eq(entryItems.id, id)).run();
+    const { remaining } = tx
+      .select({ remaining: count() })
+      .from(entryItems)
+      .where(eq(entryItems.entryId, item.entryId))
+      .get()!;
+    if (remaining === 0) tx.delete(entries).where(eq(entries.id, item.entryId)).run();
+    return { local_date: entry.localDate, entry_deleted: remaining === 0 };
+  });
+}
+
+/** Changes an entry's meal type. Undefined if the entry doesn't exist. */
+export function updateEntry(db: Db, id: number, patch: UpdateEntryRequest) {
+  return db.transaction((tx) => {
+    const row = tx.update(entries).set({ mealType: patch.meal_type }).where(eq(entries.id, id)).returning().get();
+    if (!row) return undefined;
+    const items = tx.select().from(entryItems).where(eq(entryItems.entryId, id)).orderBy(asc(entryItems.id)).all();
+    return { local_date: row.localDate, entry: toEntry(row, items.map(toItem)) };
+  });
+}
+
+/** Deletes an entry; its items go with it via the foreign key cascade. Undefined if it doesn't exist. */
+export function deleteEntry(db: Db, id: number) {
+  const row = db.delete(entries).where(eq(entries.id, id)).returning({ localDate: entries.localDate }).get();
+  return row && { local_date: row.localDate };
 }
 
 /** One day's entries grouped by meal, with subtotals and totals derived from the items. */
