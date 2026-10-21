@@ -1,6 +1,8 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it, vi } from "vitest";
-import { MODEL, SYSTEM_PROMPT, createMealEstimator } from "./claude.js";
+import { MODEL, ModelError, SYSTEM_PROMPT, createMealEstimator } from "./claude.js";
+
+const input = { text: "black coffee", localTime: "08:14" };
 
 const meal = {
   meal_type: "breakfast" as const,
@@ -30,7 +32,7 @@ describe("createMealEstimator", () => {
     const parse = vi.fn().mockResolvedValue(response);
     const estimate = createMealEstimator({ messages: { parse } } as unknown as Pick<Anthropic, "messages">);
 
-    const result = await estimate({ text: "black coffee", localTime: "08:14" });
+    const result = await estimate(input);
 
     expect(parse).toHaveBeenCalledOnce();
     const params = parse.mock.calls[0]![0];
@@ -43,5 +45,85 @@ describe("createMealEstimator", () => {
     });
     expect(params.thinking).toBeUndefined();
     expect(result).toEqual({ meal, model: MODEL, response, inputTokens: 412, outputTokens: 230 });
+  });
+});
+
+/** A real SDK client whose HTTP layer is faked, so stop reasons, parsing and API errors go through the SDK. */
+function fakeApi(respond: () => Response) {
+  const fetch = vi.fn(async () => respond());
+  const client = new Anthropic({ apiKey: "sk-ant-test", fetch, maxRetries: 0 });
+  return { fetch, estimate: createMealEstimator(client) };
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "request-id": "req_123" } });
+
+const message = (text: string, stop_reason = "end_turn") =>
+  json({
+    id: "msg_123",
+    type: "message",
+    role: "assistant",
+    model: MODEL,
+    content: [{ type: "text", text }],
+    stop_reason,
+    stop_sequence: null,
+    usage: { input_tokens: 400, output_tokens: 250 },
+  });
+
+async function failure(promise: Promise<unknown>): Promise<ModelError> {
+  const err = await promise.then(
+    () => expect.fail("expected the estimate to fail"),
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(ModelError);
+  return err as ModelError;
+}
+
+describe("createMealEstimator failures", () => {
+  it("parses a valid reply through the real SDK", async () => {
+    const { estimate } = fakeApi(() => message(JSON.stringify(meal)));
+    expect((await estimate(input)).meal).toEqual(meal);
+  });
+
+  it("rejects a refusal", async () => {
+    const { estimate } = fakeApi(() => message("I can't help with that.", "refusal"));
+    const err = await failure(estimate(input));
+    expect(err.kind).toBe("refusal");
+    expect(err.context).toMatchObject({ id: "msg_123", stop_reason: "refusal" });
+  });
+
+  it("rejects a reply cut off at max_tokens", async () => {
+    const { estimate } = fakeApi(() => message(JSON.stringify(meal).slice(0, 40), "max_tokens"));
+    expect((await failure(estimate(input))).kind).toBe("max_tokens");
+  });
+
+  it("rejects max_tokens even if the truncated JSON happens to parse", async () => {
+    const { estimate } = fakeApi(() => message(JSON.stringify(meal), "max_tokens"));
+    expect((await failure(estimate(input))).kind).toBe("max_tokens");
+  });
+
+  it.each([
+    ["invalid JSON", "{not json"],
+    ["the wrong shape", JSON.stringify({ items: [{ name: "Coffee" }] })],
+  ])("rejects %s as a schema failure", async (_, text) => {
+    const { estimate } = fakeApi(() => message(text));
+    const err = await failure(estimate(input));
+    expect(err.kind).toBe("schema");
+    expect(err.context.parse_error).toMatch(/Failed to parse structured output/);
+  });
+
+  it.each([401, 400, 500, 529])("rejects an API %i as api_error", async (status) => {
+    const { estimate } = fakeApi(() => json({ type: "error", error: { type: "api_error", message: "nope" } }, status));
+    const err = await failure(estimate(input));
+    expect(err.kind).toBe("api_error");
+    expect(err.context).toMatchObject({ status, request_id: "req_123" });
+    expect(JSON.stringify(err.context)).not.toContain("sk-ant-test");
+  });
+
+  it("rejects a network failure as api_error", async () => {
+    const { estimate } = fakeApi(() => {
+      throw new TypeError("fetch failed");
+    });
+    expect((await failure(estimate(input))).kind).toBe("api_error");
   });
 });

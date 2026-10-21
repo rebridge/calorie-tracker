@@ -1,5 +1,6 @@
 import { CalendarDays, NotebookPen, Settings } from "lucide-react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -61,6 +62,13 @@ export function AppShell() {
           ))}
         </ul>
       </nav>
+
+      {/* Top of the screen so toasts never cover the composer or the phone keyboard. */}
+      <Toaster
+        position="top-center"
+        offset={{ top: "calc(4rem + env(safe-area-inset-top))" }}
+        mobileOffset={{ top: "calc(4rem + env(safe-area-inset-top))" }}
+      />
     </div>
   );
 }

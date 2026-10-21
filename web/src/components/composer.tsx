@@ -1,14 +1,24 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, LoaderCircle } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateEntry } from "@/hooks/use-day";
+import { ApiError } from "@/lib/api";
+
+function failureMessage(err: Error) {
+  if (err instanceof ApiError && err.status === 422) return `That doesn't look like food: ${err.message}`;
+  // 502 (model refused, errored or returned junk), network errors, anything else.
+  return "Couldn't estimate that — try again";
+}
 
 /** Meal text input pinned above the tab bar. Shared by the Log and Day pages. */
 export function Composer() {
   const [text, setText] = useState("");
   const textarea = useRef<HTMLTextAreaElement>(null);
   const createEntry = useCreateEntry();
+  // isPending only updates on the next render, so a fast double tap could slip past it.
+  const inFlight = useRef(false);
   const canSubmit = text.trim().length > 0 && !createEntry.isPending;
 
   // Auto-grow for browsers without `field-sizing: content` (older iOS Safari).
@@ -20,8 +30,19 @@ export function Composer() {
   }, [text]);
 
   function submit() {
-    if (!canSubmit) return;
-    createEntry.mutate({ text }, { onSuccess: () => setText("") });
+    if (!canSubmit || inFlight.current) return;
+    inFlight.current = true;
+    // On failure the text stays in the box so nothing the user typed is lost.
+    createEntry.mutate(
+      { text },
+      {
+        onSuccess: () => setText(""),
+        onError: (err) => toast.error(failureMessage(err)),
+        onSettled: () => {
+          inFlight.current = false;
+        },
+      },
+    );
   }
 
   return (
@@ -50,15 +71,16 @@ export function Composer() {
           enterKeyHint="enter"
           className="max-h-40 min-h-11 resize-none"
         />
-        <Button type="submit" size="icon" className="size-11 rounded-full" disabled={!canSubmit} aria-label="Log meal">
-          <ArrowUp className="size-5" />
+        <Button
+          type="submit"
+          size="icon"
+          className="size-11 rounded-full"
+          disabled={!canSubmit}
+          aria-label={createEntry.isPending ? "Estimating…" : "Log meal"}
+        >
+          {createEntry.isPending ? <LoaderCircle className="size-5 animate-spin" /> : <ArrowUp className="size-5" />}
         </Button>
       </div>
-      {createEntry.isError && (
-        <p className="mt-2 text-sm text-destructive" role="alert">
-          {createEntry.error.message}
-        </p>
-      )}
     </form>
   );
 }

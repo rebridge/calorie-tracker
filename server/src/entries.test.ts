@@ -4,7 +4,7 @@ import path from "node:path";
 import type { DayResponse, Entry, Meal } from "@calorie-tracker/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
-import type { MealEstimator } from "./claude.js";
+import { ModelError, type MealEstimator } from "./claude.js";
 import { openDb } from "./db/index.js";
 import { entries, entryItems } from "./db/schema.js";
 
@@ -147,6 +147,71 @@ describe("POST /api/entries", () => {
     expect((await post({ text: "x", date: "2026-10-12" })).status).toBe(400);
     expect((await post({ text: "x", date: "2026-10-14" })).status).toBe(400);
     expect((await post({ text: "x", date: "2026-10-13" })).status).toBe(201);
+  });
+});
+
+describe("POST /api/entries failures", () => {
+  const rowCounts = () => ({
+    entries: handle.db.select().from(entries).all().length,
+    items: handle.db.select().from(entryItems).all().length,
+  });
+
+  let errorLog: ReturnType<typeof vi.spyOn>;
+  let warnLog: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
+    return () => {
+      errorLog.mockRestore();
+      warnLog.mockRestore();
+    };
+  });
+
+  it.each([
+    ["hello", { meal_type: null, items: [], not_food_reason: "That's a greeting, not food." }, "That's a greeting, not food."],
+    ["ran 3 miles", { meal_type: null, items: [], not_food_reason: "That's exercise, not food." }, "That's exercise, not food."],
+    ["???", { meal_type: null, items: [], not_food_reason: null }, "No food or drink found"],
+    // A reason wins even if the model also listed items.
+    ["hello", { ...breakfast, not_food_reason: "Not a meal." }, "Not a meal."],
+  ])("returns 422 for %j and saves nothing", async (text, meal, reason) => {
+    nextMeal = meal as Meal;
+    const res = await post({ text });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: "not_food", reason });
+    expect(rowCounts()).toEqual({ entries: 0, items: 0 });
+    expect(warnLog).toHaveBeenCalledWith(expect.stringContaining("not food"), expect.objectContaining({ text, reason }));
+  });
+
+  it.each([
+    new ModelError("refusal", "The model declined to answer", { stop_reason: "refusal", id: "msg_1" }),
+    new ModelError("max_tokens", "The model's reply was cut off", { stop_reason: "max_tokens" }),
+    new ModelError("schema", "The model's reply didn't match the expected format", { parse_error: "bad" }),
+    new ModelError("api_error", "The model API call failed", { status: 401, request_id: "req_1" }),
+  ])("returns 502 for a $kind failure, logs it and saves nothing", async (err) => {
+    estimateMeal.mockRejectedValueOnce(err);
+    const res = await post({ text: "2 eggs" });
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "model_error", reason: err.message });
+    expect(rowCounts()).toEqual({ entries: 0, items: 0 });
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining("model error"),
+      expect.objectContaining({ kind: err.kind, text: "2 eggs", local_date: "2026-10-13", ...err.context }),
+    );
+  });
+
+  it("returns 502 for an unexpected estimator error", async () => {
+    estimateMeal.mockRejectedValueOnce(new Error("boom"));
+    const res = await post({ text: "2 eggs" });
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { error: string }).error).toBe("model_error");
+    expect(rowCounts()).toEqual({ entries: 0, items: 0 });
+  });
+
+  it("returns 400 for a body that isn't JSON", async () => {
+    const res = await app.request("/api/entries", { method: "POST", body: "not json" });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe("invalid_request");
+    expect(estimateMeal).not.toHaveBeenCalled();
   });
 });
 

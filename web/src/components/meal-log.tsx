@@ -1,4 +1,5 @@
 import type { DayResponse, Entry, EntryItem, MealType } from "@calorie-tracker/shared";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const mealLabels: Record<MealType, string> = {
   breakfast: "Breakfast",
@@ -11,15 +12,19 @@ const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 
-/** A day's entries grouped by meal. Shared by the Log and Day pages. */
-export function MealLog({ day }: { day: DayResponse }) {
+/**
+ * A day's entries grouped by meal. Shared by the Log and Day pages.
+ * `pending` shows a placeholder card while a new entry is being estimated.
+ */
+export function MealLog({ day, pending = false }: { day: DayResponse; pending?: boolean }) {
   const meals = day.meals.filter((m) => m.entries.length > 0);
-  if (meals.length === 0) {
+  if (meals.length === 0 && !pending) {
     return <p className="py-12 text-center text-muted-foreground">Nothing logged</p>;
   }
 
   return (
     <div className="space-y-6">
+      {pending && <EntrySkeleton />}
       {meals.map((meal) => (
         <section key={meal.meal_type} aria-labelledby={`meal-${meal.meal_type}`}>
           <div className="mb-2 flex items-baseline justify-between">
@@ -54,6 +59,31 @@ function EntryCard({ entry }: { entry: Entry }) {
       <ul className="divide-y px-4 pb-1">
         {entry.items.map((item) => (
           <ItemRow key={item.id} item={item} />
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function EntrySkeleton() {
+  return (
+    <article className="rounded-xl border bg-card shadow-xs" aria-busy="true" aria-label="Estimating your meal">
+      <header className="flex items-start justify-between gap-3 px-4 pt-3">
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-3 w-28" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+        <Skeleton className="h-5 w-16" />
+      </header>
+      <ul className="divide-y px-4 pb-1">
+        {[0, 1].map((i) => (
+          <li key={i} className="flex min-h-11 items-center justify-between gap-3 py-3">
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+            <Skeleton className="h-4 w-10" />
+          </li>
         ))}
       </ul>
     </article>

@@ -10,7 +10,7 @@ import {
   type HealthResponse,
 } from "@calorie-tracker/shared";
 import { sql } from "drizzle-orm";
-import type { MealEstimator } from "./claude.js";
+import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import type { Db } from "./db/index.js";
 import { createEntry, getDay } from "./entries.js";
 import { resolveMealType } from "./meal-type.js";
@@ -56,7 +56,29 @@ export function createApp({
     }
 
     const time = localTime(instant);
-    const estimate = await estimateMeal({ text, localTime: time });
+    let estimate: Estimate;
+    try {
+      estimate = await estimateMeal({ text, localTime: time });
+    } catch (err) {
+      const failure = err instanceof ModelError ? err : new ModelError("api_error", "The model call failed", {}, { cause: err });
+      console.error("[entries] model error, nothing saved", {
+        kind: failure.kind,
+        reason: failure.message,
+        ...failure.context,
+        text,
+        local_date: localDate,
+        ...(failure.cause instanceof Error && { cause: failure.cause.message }),
+      });
+      return c.json({ error: "model_error", reason: failure.message }, 502);
+    }
+
+    const { items, not_food_reason } = estimate.meal;
+    if (items.length === 0 || not_food_reason) {
+      const reason = not_food_reason ?? "No food or drink found";
+      console.warn("[entries] not food, nothing saved", { reason, text, local_date: localDate });
+      return c.json({ error: "not_food", reason }, 422);
+    }
+
     const entry = createEntry(db, {
       text,
       localDate,
