@@ -2,6 +2,10 @@
 **/dist
 **/*.tsbuildinfo
 .git
+.claude
 .env
 data
 .scratch
+**/*.db
+**/*.db-wal
+**/*.db-shm

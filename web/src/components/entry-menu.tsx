@@ -82,7 +82,7 @@ export function EntryMenu({ entry }: { entry: Entry }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90 dark:bg-destructive/60 dark:hover:bg-destructive/50"
               disabled={deleteEntry.isPending}
               onClick={(e) => {
                 // Keep the dialog open until the request settles; it disappears with the card on success.

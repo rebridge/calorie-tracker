@@ -67,7 +67,7 @@ export function Composer({ date = "today" }: { date?: string }) {
 
   return (
     <form
-      className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] -mx-4 -mb-4 mt-4 border-t bg-background/90 px-4 py-3 backdrop-blur"
+      className="sticky bottom-(--tabbar-h) -mx-4 -mb-4 mt-4 border-t bg-background/90 px-4 py-3 backdrop-blur"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -120,6 +120,8 @@ export function Composer({ date = "today" }: { date?: string }) {
           className="size-11 rounded-full"
           disabled={!canSubmit}
           aria-label={estimating ? "Estimating…" : "Log meal"}
+          // Keep focus in the textarea when tapping send, so the keyboard doesn't collapse (and the layout jump) before the tap lands.
+          onMouseDown={(e) => e.preventDefault()}
         >
           {estimating ? <LoaderCircle className="size-5 animate-spin" /> : <ArrowUp className="size-5" />}
         </Button>

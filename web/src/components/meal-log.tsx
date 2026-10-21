@@ -16,7 +16,9 @@ const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { ho
 export function MealLog({ day, pending = false }: { day: DayResponse; pending?: boolean }) {
   const meals = day.meals.filter((m) => m.entries.length > 0);
   if (meals.length === 0 && !pending) {
-    return <p className="py-12 text-center text-muted-foreground">Nothing logged</p>;
+    // A day with only a burn or a weight isn't empty; say what's actually missing.
+    const hasOtherData = day.burns.length > 0 || day.weight !== null;
+    return <p className="py-12 text-center text-muted-foreground">{hasOtherData ? "No meals logged" : "Nothing logged"}</p>;
   }
 
   return (

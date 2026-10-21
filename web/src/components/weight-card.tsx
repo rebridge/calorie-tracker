@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WeightDrawer } from "@/components/weight-drawer";
@@ -62,9 +63,17 @@ export function WeightCard({ day, today }: { day: DayResponse; today: string }) 
         </Button>
       )}
 
-      <Suspense fallback={<Skeleton className="mt-4 h-72 w-full" />}>
-        <WeightTrendChart date={day.date} />
-      </Suspense>
+      <ErrorBoundary
+        fallback={
+          <p role="alert" className="mt-4 border-t pt-4 text-sm text-destructive">
+            Couldn&apos;t load the weight chart. Reload to try again.
+          </p>
+        }
+      >
+        <Suspense fallback={<Skeleton className="mt-4 h-72 w-full" />}>
+          <WeightTrendChart date={day.date} />
+        </Suspense>
+      </ErrorBoundary>
 
       <WeightDrawer date={day.date} weight={weight} open={editOpen} onOpenChange={setEditOpen} />
 
@@ -77,7 +86,7 @@ export function WeightCard({ day, today }: { day: DayResponse; today: string }) 
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90 dark:bg-destructive/60 dark:hover:bg-destructive/50"
               disabled={deleteWeight.isPending}
               onClick={(e) => {
                 // Keep the dialog open until the request settles.

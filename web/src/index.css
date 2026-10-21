@@ -90,6 +90,14 @@
   --color-chart-5: var(--chart-5);
 }
 
+/* Height of the tab bar the pinned composer sits above; zero while the on-screen keyboard is up (see AppShell). */
+:root {
+  --tabbar-h: calc(3.5rem + env(safe-area-inset-bottom));
+}
+:root[data-kb] {
+  --tabbar-h: 0px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

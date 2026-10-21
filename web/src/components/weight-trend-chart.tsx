@@ -16,6 +16,27 @@ import { fmt } from "@/lib/meals";
 
 const RANGES: WeightRange[] = ["30d", "90d", "1y"];
 
+const RANGE_KEY = "weight-range";
+/** The chart remounts on every day change; this keeps the chosen range (and survives a reload where storage allows). */
+let selectedRange: WeightRange = (() => {
+  try {
+    const stored = WeightRangeSchema.safeParse(localStorage.getItem(RANGE_KEY));
+    if (stored.success) return stored.data;
+  } catch {
+    // Storage can be blocked (private mode); the module variable still carries the choice across days.
+  }
+  return "30d";
+})();
+
+function rememberRange(range: WeightRange) {
+  selectedRange = range;
+  try {
+    localStorage.setItem(RANGE_KEY, range);
+  } catch {
+    // Not persisted across reloads; fine.
+  }
+}
+
 const chartConfig = {
   weight: { label: "Daily", color: "var(--chart-2)" },
   avg: { label: "7-day avg", color: "var(--chart-1)" },
@@ -55,7 +76,7 @@ function yAxisTicks(values: number[]): { domain: [number, number]; ticks: number
  * server's today, with a marker on `date` (the viewed day) when it falls inside the range.
  */
 export function WeightTrendChart({ date }: { date: string }) {
-  const [range, setRange] = useState<WeightRange>("30d");
+  const [range, setRange] = useState<WeightRange>(selectedRange);
   const trend = useWeightTrend(range);
 
   return (
@@ -67,7 +88,9 @@ export function WeightTrendChart({ date }: { date: string }) {
         // Tapping the selected range would clear it; a range is always chosen.
         onValueChange={(value) => {
           const next = WeightRangeSchema.safeParse(value);
-          if (next.success) setRange(next.data);
+          if (!next.success) return;
+          rememberRange(next.data);
+          setRange(next.data);
         }}
         aria-label="Chart range"
         className="w-full"
