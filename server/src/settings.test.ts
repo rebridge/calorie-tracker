@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { openDb } from "./db/index.js";
-import { settings } from "./db/schema.js";
+import { entries, settings } from "./db/schema.js";
 
 let tmp: string;
 let handle: ReturnType<typeof openDb>;
@@ -46,7 +46,27 @@ describe("GET /api/settings", () => {
       ...defaults,
       model: "claude-haiku-5-5",
       database_path: path.join(tmp, "data", "calories.db"),
+      token_usage: { input_tokens: 0, output_tokens: 0 },
     });
+  });
+
+  it("sums token usage over all saved entries", async () => {
+    const entry = (inputTokens: number, outputTokens: number) => ({
+      createdAt: "2026-10-22T12:00:00.000Z",
+      localDate: "2026-10-22",
+      mealType: "lunch" as const,
+      rawText: "sandwich",
+      model: "claude-haiku-5-5",
+      modelResponse: "{}",
+      inputTokens,
+      outputTokens,
+    });
+    handle.db.insert(entries).values([entry(400, 250), entry(1200, 310)]).run();
+    try {
+      expect(await (await get()).json()).toMatchObject({ token_usage: { input_tokens: 1600, output_tokens: 560 } });
+    } finally {
+      handle.db.delete(entries).run();
+    }
   });
 });
 

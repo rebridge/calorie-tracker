@@ -131,6 +131,16 @@ export function SettingsPage() {
             <dt className="text-muted-foreground">Database</dt>
             <dd className="font-mono break-all">{data.database_path}</dd>
           </div>
+          <div>
+            <dt className="text-muted-foreground">Tokens used</dt>
+            <dd className="font-mono tabular-nums">
+              {(data.token_usage.input_tokens + data.token_usage.output_tokens).toLocaleString()}
+              <span className="font-sans text-muted-foreground">
+                {" "}
+                ({data.token_usage.input_tokens.toLocaleString()} in · {data.token_usage.output_tokens.toLocaleString()} out)
+              </span>
+            </dd>
+          </div>
         </dl>
       </section>
     </div>

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { SettingsSchema, type Settings, type SettingsResponse } from "@calorie-tracker/shared";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { MODEL } from "./claude.js";
 import type { Db } from "./db/index.js";
-import { settings } from "./db/schema.js";
+import { entries, settings } from "./db/schema.js";
 import { firstIssue } from "./first-issue.js";
 
 /** The current goals; also embedded in every day response. */
@@ -20,10 +20,18 @@ export function getGoals(db: Db): Settings {
 }
 
 function getSettings(db: Db): SettingsResponse {
+  const usage = db
+    .select({
+      input: sql<number>`coalesce(sum(${entries.inputTokens}), 0)`,
+      output: sql<number>`coalesce(sum(${entries.outputTokens}), 0)`,
+    })
+    .from(entries)
+    .get();
   return {
     ...getGoals(db),
     model: MODEL,
     database_path: db.$client.name,
+    token_usage: { input_tokens: usage?.input ?? 0, output_tokens: usage?.output ?? 0 },
   };
 }
 

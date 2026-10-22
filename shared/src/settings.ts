@@ -16,5 +16,10 @@ export type Settings = z.infer<typeof SettingsSchema>;
 export const SettingsResponseSchema = SettingsSchema.extend({
   model: z.string(),
   database_path: z.string(),
+  /** Model tokens summed over every saved entry; deleted entries and failed calls aren't counted. */
+  token_usage: z.object({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+  }),
 });
 export type SettingsResponse = z.infer<typeof SettingsResponseSchema>;

@@ -94,6 +94,13 @@ export function createMealEstimator(client: Pick<Anthropic, "messages"> = new An
       stop_reason: message.stop_reason,
       usage: message.usage,
     };
+    // Logged for every reply, including ones rejected below: those tokens were still billed.
+    console.log("[claude] usage", {
+      request_id: message._request_id,
+      stop_reason: message.stop_reason,
+      input_tokens: message.usage.input_tokens,
+      output_tokens: message.usage.output_tokens,
+    });
     if (message.stop_reason === "refusal") throw new ModelError("refusal", "The model declined to answer", context);
     if (message.stop_reason === "max_tokens") throw new ModelError("max_tokens", "The model's reply was cut off", context);
     if (!message.parsed_output) {

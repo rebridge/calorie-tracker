@@ -51,7 +51,10 @@ export function DayPage() {
     if (next < todayDate) void queryClient.prefetchQuery(dayQueryOptions(next));
   }, [queryClient, loadedDate, todayDate]);
 
-  useEffect(() => window.scrollTo(0, 0), [param]);
+  // Braced so scrollTo's return value is never mistaken for a cleanup function (some browsers return one).
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [param]);
 
   if (param !== undefined && param === todayDate) return <Navigate to="/day" replace />;
 
