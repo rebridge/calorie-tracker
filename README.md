@@ -16,7 +16,7 @@ docker compose up -d --build
 docker compose ps                             # wait for "healthy" (up to ~30s)
 ```
 
-Open `http://<server-ip>:8080` on your LAN.
+The port is published on `127.0.0.1` only, so open `http://localhost:8080` on the host and use Tailscale (below) from other devices. To reach it directly from your LAN instead, change `ports:` to `"8080:8080"`.
 
 If `./data` doesn't exist, Docker creates it owned by root and the container can't write to it. It restarts in a loop and the logs (`docker compose logs`) say to run `sudo chown -R 1000:1000 ./data`.
 
@@ -37,7 +37,7 @@ Then open `https://<host>.<tailnet>.ts.net` from any device on the tailnet. `tai
 | `ANTHROPIC_API_KEY` | `.env` | required; the server refuses to start without it |
 | `TZ` | `docker-compose.yml` | `America/New_York` |
 | `DATABASE_PATH` | `docker-compose.yml` | `/data/calories.db` (the `./data` volume) |
-| `PORT` | container env | `8080` (change the left side of `ports:` to publish elsewhere) |
+| `PORT` | container env | `8080` (change the host port in `ports:`, e.g. `127.0.0.1:8090:8080`, to publish elsewhere) |
 
 #### Changing `TZ`
 
