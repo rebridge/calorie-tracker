@@ -38,6 +38,7 @@ export function useDay(date: string) {
  * Refreshes the day an edit landed on, plus "today" unless that day is known to be in the past (so editing
  * a past day doesn't refetch an unchanged today). "Known" means strictly before the cached today's date;
  * a cache that's out of date can only be older than the real today, so it never hides a real today.
+ * Also refreshes the calories-in-vs-burned chart, which sums every day in its range.
  */
 export function invalidateDay(queryClient: QueryClient, localDate: string) {
   const cachedToday = queryClient.getQueryData<DayResponse>(["day", "today"])?.date;
@@ -45,6 +46,7 @@ export function invalidateDay(queryClient: QueryClient, localDate: string) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ["day", localDate] }),
     isPast ? undefined : queryClient.invalidateQueries({ queryKey: ["day", "today"] }),
+    queryClient.invalidateQueries({ queryKey: ["calories"] }),
   ]);
 }
 
