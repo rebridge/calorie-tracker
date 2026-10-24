@@ -1,0 +1,56 @@
+name: iOS
+
+# Only when the iOS app changes: macOS minutes count 10x against a private repo's free quota.
+on:
+  push:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: CalorieCore tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+        working-directory: ios/CalorieCore
+
+  build:
+    name: Unsigned iPhone build
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version
+      - name: Build
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project CalorieTracker.xcodeproj \
+            -scheme CalorieTracker \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: Show the full log on failure
+        if: failure()
+        working-directory: ios
+        run: tail -n 300 build.log
+      # Sideloadly or AltStore signs this with a free Apple ID when it installs it (see ios/README.md).
+      - name: Package unsigned .ipa
+        working-directory: ios
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/CalorieTracker.app Payload/
+          zip -qry CalorieTracker-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CalorieTracker-unsigned-ipa
+          path: ios/CalorieTracker-unsigned.ipa
+          retention-days: 30
