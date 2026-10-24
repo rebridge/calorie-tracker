@@ -1,11 +1,11 @@
 import {
   MEAL_TYPES,
   type DayResponse,
-  type SyncEntryRequest,
   type Entry,
   type EntryItem,
   type Macros,
   type MealType,
+  type SyncEntryRequest,
   type UpdateEntryRequest,
   type UpdateItemRequest,
 } from "@calorie-tracker/shared";
