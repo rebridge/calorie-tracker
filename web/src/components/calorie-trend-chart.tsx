@@ -1,8 +1,8 @@
 import { formatShortDate, WEIGHT_RANGE_DAYS, WeightRangeSchema, type CaloriesResponse, type WeightRange } from "@calorie-tracker/shared";
 import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCalorieTrend } from "@/hooks/use-calories";
@@ -12,16 +12,31 @@ import { fmt } from "@/lib/meals";
 const rangeChoice = rangeMemory("calorie-range");
 
 const chartConfig = {
-  eaten: { label: "Eaten", color: "var(--chart-1)" },
-  burned: { label: "Burned", color: "var(--chart-4)" },
+  diff: { label: "vs goal" },
 } satisfies ChartConfig;
+
+const UNDER = "var(--chart-4)";
+const OVER = "var(--destructive)";
+
+/** "+120", "−80" (a real minus sign), or "Goal" for 0: the y axis reads as distance from the goal line. */
+const signed = (n: number) => (n === 0 ? "Goal" : `${n > 0 ? "+" : "−"}${fmt(Math.abs(n))}`);
+
+/** Gridlines symmetric about the goal in round steps (100, 250, 500, …), so over and under share one scale. */
+function yAxisTicks(diffs: number[]): { domain: [number, number]; ticks: number[] } {
+  const reach = Math.max(100, ...diffs.map(Math.abs));
+  const step = [100, 250, 500, 1000, 2500].find((s) => s * 3 >= reach) ?? 5000;
+  const top = Math.ceil(reach / step) * step;
+  const ticks: number[] = [];
+  for (let t = -top; t <= top; t += step) ticks.push(t);
+  return { domain: [-top, top], ticks };
+}
 
 const CHART_HEIGHT = "h-52";
 
 /**
- * Calories eaten vs burned per day over 30d / 90d / 1y, always ending at the server's today, with a marker on
- * `date` (the viewed day) when it falls inside the range. Each day is one column: eaten rises above zero and
- * burned hangs below it, so in vs out reads at a glance even at a year's density. Days with nothing logged are gaps.
+ * Each day's net calories (eaten − burned, as the budget counts them) against the calorie goal over 30d / 90d / 1y,
+ * always ending at the server's today, with a marker on `date` (the viewed day) when it falls inside the range.
+ * Bars start at the goal line: up and red is over, down and teal is under. Days with nothing logged are gaps.
  */
 export function CalorieTrendChart({ date }: { date: string }) {
   const [range, setRange] = useState<WeightRange>(rangeChoice.get);
@@ -70,22 +85,45 @@ export function CalorieTrendChart({ date }: { date: string }) {
   );
 }
 
-function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }) {
-  const { range, from, today } = trend;
+type Row = { x: number; date: string; eaten: number; burned: number; net: number; diff: number };
 
-  // Burned is drawn below zero; the axis and tooltip show it as a positive number.
-  const rows = useMemo(
-    () => trend.points.map((p) => ({ x: dayNumber(p.date), date: p.date, eaten: p.eaten_kcal, burned: -p.burned_kcal })),
-    [trend],
+function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }) {
+  const { range, from, today, goal_kcal: goal } = trend;
+
+  const rows = useMemo<Row[]>(
+    () =>
+      trend.points.map((p) => {
+        const net = p.eaten_kcal - p.burned_kcal;
+        return { x: dayNumber(p.date), date: p.date, eaten: p.eaten_kcal, burned: p.burned_kcal, net, diff: net - goal };
+      }),
+    [trend, goal],
   );
   const ticks = useMemo(() => xAxisTicks(range, from, today), [range, from, today]);
 
+  // Today is still in progress, so it would read as under goal; the summary covers finished days only.
+  const done = rows.filter((r) => r.date < today);
+  const avg = done.length ? Math.round(done.reduce((sum, r) => sum + r.diff, 0) / done.length) : null;
+  const under = done.filter((r) => r.diff <= 0).length;
+
+  const { domain, ticks: yTicks } = yAxisTicks(rows.map((r) => r.diff));
   const marked = date >= from && date <= today;
 
   return (
     <div>
+      <p className="mb-2 text-sm text-muted-foreground">
+        Goal {fmt(goal)}
+        {avg !== null && (
+          <>
+            {" · avg "}
+            <span className="font-medium tabular-nums" style={{ color: avg > 0 ? OVER : UNDER }}>
+              {fmt(Math.abs(avg))} {avg > 0 ? "over" : "under"}
+            </span>
+            {` · ${under}/${done.length} days under`}
+          </>
+        )}
+      </p>
       <ChartContainer config={chartConfig} className={`aspect-auto ${CHART_HEIGHT} w-full`}>
-        <BarChart data={rows} stackOffset="sign" margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
+        <BarChart data={rows} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="x"
@@ -99,40 +137,24 @@ function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }
             tickMargin={8}
             interval={0}
           />
-          <YAxis width={44} tickLine={false} axisLine={false} tickFormatter={(n: number) => fmt(Math.abs(n))} />
-          <ChartTooltip
-            cursor={{ fill: "var(--muted)", opacity: 0.6 }}
-            content={
-              <ChartTooltipContent
-                labelFormatter={(_, payload) => {
-                  const d = (payload[0]?.payload as { date?: string } | undefined)?.date;
-                  return d ? formatShortDate(d, today) : "";
-                }}
-                formatter={(value, name, item) => (
-                  <div className="flex flex-1 items-center gap-2">
-                    <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: item.color }} />
-                    <span className="flex-1 text-muted-foreground">{chartConfig[name as keyof typeof chartConfig].label}</span>
-                    <span className="font-mono font-medium text-foreground tabular-nums">
-                      {Math.abs(Number(value)).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              />
-            }
-          />
-          <ReferenceLine y={0} stroke="var(--border)" />
+          <YAxis domain={domain} ticks={yTicks} width={48} tickLine={false} axisLine={false} tickFormatter={signed} />
+          <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.6 }} content={<GoalTooltip goal={goal} today={today} />} />
+          <ReferenceLine y={0} stroke="var(--foreground)" strokeOpacity={0.5} />
           {marked && <ReferenceLine x={dayNumber(date)} stroke="var(--chart-3)" strokeWidth={2} strokeDasharray="4 3" />}
-          <Bar dataKey="eaten" stackId="day" fill="var(--color-eaten)" radius={[2, 2, 0, 0]} isAnimationActive={false} />
-          <Bar dataKey="burned" stackId="day" fill="var(--color-burned)" radius={[2, 2, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="diff" isAnimationActive={false}>
+            {rows.map((r) => (
+              <Cell key={r.date} fill={r.diff > 0 ? OVER : UNDER} />
+            ))}
+          </Bar>
         </BarChart>
       </ChartContainer>
 
       <ul className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <li className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-[2px]" style={{ background: "var(--chart-1)" }} /> Eaten
+          <span className="size-2.5 rounded-[2px]" style={{ background: UNDER }} /> Under goal
         </li>
         <li className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-[2px]" style={{ background: "var(--chart-4)" }} /> Burned
+          <span className="size-2.5 rounded-[2px]" style={{ background: OVER }} /> Over goal
         </li>
         {marked && (
           <li className="flex items-center gap-1.5">
@@ -141,6 +163,29 @@ function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }
           </li>
         )}
       </ul>
+    </div>
+  );
+}
+
+/** "Mon, Oct 13 · 1,920 vs 2,000 goal · 80 under", with the eaten and burned that make up the net. */
+function GoalTooltip({ goal, today, active, payload }: { goal: number; today: string; active?: boolean; payload?: { payload: Row }[] }) {
+  const row = active ? payload?.[0]?.payload : undefined;
+  if (!row) return null;
+  const over = row.diff > 0;
+  return (
+    <div className="grid min-w-36 gap-1 rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-xl">
+      <p className="font-medium">{formatShortDate(row.date, today)}</p>
+      <p className="tabular-nums">
+        <span className="font-medium">{fmt(row.net)}</span> vs {fmt(goal)} goal
+      </p>
+      <p className="font-medium tabular-nums" style={{ color: over ? OVER : UNDER }}>
+        {row.diff === 0 ? "On goal" : `${fmt(Math.abs(row.diff))} ${over ? "over" : "under"}`}
+      </p>
+      {row.burned > 0 && (
+        <p className="text-muted-foreground tabular-nums">
+          {fmt(row.eaten)} eaten − {fmt(row.burned)} burned
+        </p>
+      )}
     </div>
   );
 }

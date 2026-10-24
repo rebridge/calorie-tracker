@@ -63,7 +63,7 @@ const getCalories = async (range?: string) =>
 
 describe("GET /api/calories", () => {
   it("is empty but still names the range when nothing is logged", async () => {
-    expect(await getCalories()).toEqual({ range: "30d", from: "2026-09-13", today: "2026-10-13", points: [] });
+    expect(await getCalories()).toEqual({ range: "30d", from: "2026-09-13", today: "2026-10-13", goal_kcal: 2000, points: [] });
   });
 
   it("starts each range that many days before today", async () => {
@@ -96,6 +96,11 @@ describe("GET /api/calories", () => {
     await logBurn(100, "2026-09-12");
     await logMeal("2026-09-13");
     expect((await getCalories()).points.map((p) => p.date)).toEqual(["2026-09-13"]);
+  });
+
+  it("reports the current calorie goal", async () => {
+    await send("PUT", "/api/settings", { calorie_goal: 1800, protein_goal_g: 150, carbs_goal_g: 200, fat_goal_g: 65 });
+    expect((await getCalories()).goal_kcal).toBe(1800);
   });
 
   it("reflects a deleted entry immediately", async () => {

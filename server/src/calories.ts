@@ -9,9 +9,10 @@ import {
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import type { Db } from "./db/index.js";
 import { burns, entries, entryItems } from "./db/schema.js";
+import { getGoals } from "./settings.js";
 import { today } from "./today.js";
 
-/** `GET /calories`, mounted under `/api`: daily calories eaten vs burned for the chart above the weight trend. */
+/** `GET /calories`, mounted under `/api`: daily calories eaten and burned, and the goal, for the chart above the weight trend. */
 export function calorieRoutes(db: Db, now: () => Date) {
   const routes = new Hono();
 
@@ -48,6 +49,7 @@ export function calorieRoutes(db: Db, now: () => Date) {
       range,
       from,
       today: end,
+      goal_kcal: getGoals(db).calorie_goal,
       points: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
     } satisfies CaloriesResponse);
   });

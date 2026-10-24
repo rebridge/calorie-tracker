@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
 
 /**
- * Daily calories eaten vs burned, keyed ['calories', range]. `invalidateDay` refreshes the whole ['calories'] prefix,
- * so any entry or burn change shows up here.
+ * Daily calories eaten and burned plus the calorie goal, keyed ['calories', range]. `invalidateDay` refreshes the whole ['calories'] prefix,
+ * so any entry or burn change shows up here; a goal change invalidates it from `useUpdateSettings`.
  */
 export function useCalorieTrend(range: WeightRange) {
   return useQuery({

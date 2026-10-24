@@ -7,11 +7,11 @@ const CalorieTrendChart = lazy(() =>
   import("@/components/calorie-trend-chart").then((m) => ({ default: m.CalorieTrendChart })),
 );
 
-/** Calories eaten vs burned over time, shown above the weight card. `date` is the viewed day, marked on the chart. */
+/** Each day's net calories against the goal, shown above the weight card. `date` is the viewed day, marked on the chart. */
 export function CaloriesCard({ date }: { date: string }) {
   return (
-    <section aria-label="Calories in vs burned" className="rounded-xl border bg-card p-4 text-card-foreground shadow-xs">
-      <h2 className="text-sm font-medium text-muted-foreground">Calories in vs burned</h2>
+    <section aria-label="Calories vs goal" className="rounded-xl border bg-card p-4 text-card-foreground shadow-xs">
+      <h2 className="text-sm font-medium text-muted-foreground">Calories vs goal</h2>
       <ErrorBoundary
         fallback={
           <p role="alert" className="mt-3 text-sm text-destructive">
