@@ -16,11 +16,12 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: Settings) => apiPut("/api/settings", body, SettingsResponseSchema),
-    // Goals show up on every day, so all cached days go stale, not just one date.
+    // Goals show up on every day (and in the calories-vs-goal chart), so all of them go stale, not just one date.
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: settingsKey }),
         queryClient.invalidateQueries({ queryKey: ["day"] }),
+        queryClient.invalidateQueries({ queryKey: ["calories"] }),
       ]),
   });
 }

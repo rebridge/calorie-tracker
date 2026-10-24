@@ -17,6 +17,7 @@ import {
 } from "@calorie-tracker/shared";
 import { sql } from "drizzle-orm";
 import { burnRoutes } from "./burns.js";
+import { calorieRoutes } from "./calories.js";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
@@ -141,6 +142,7 @@ export function createApp({
   });
 
   api.route("/", burnRoutes(db, now));
+  api.route("/", calorieRoutes(db, now));
   api.route("/", settingsRoutes(db));
   api.route("/", weightRoutes(db, now));
   app.route("/api", api);

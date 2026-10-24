@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { BurnsList } from "@/components/burns-list";
+import { CaloriesCard } from "@/components/calories-card";
 import { Composer } from "@/components/composer";
 import { DateBar } from "@/components/date-bar";
 import { HeaderCard, MacroBars } from "@/components/day-summary";
@@ -80,6 +81,8 @@ export function DayPage() {
             <div className="empty:hidden">
               <BurnsList day={day.data} />
             </div>
+
+            <CaloriesCard date={day.data.date} />
 
             <div className="empty:hidden"><WeightCard day={day.data} today={todayDate} /></div>
           </div>
