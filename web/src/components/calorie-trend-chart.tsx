@@ -12,23 +12,23 @@ import { fmt } from "@/lib/meals";
 const rangeChoice = rangeMemory("calorie-range");
 
 const chartConfig = {
-  diff: { label: "vs goal" },
+  net: { label: "Net" },
 } satisfies ChartConfig;
 
 const UNDER = "var(--chart-4)";
 const OVER = "var(--destructive)";
 
-/** "+120", "−80" (a real minus sign), or "Goal" for 0: the y axis reads as distance from the goal line. */
-const signed = (n: number) => (n === 0 ? "Goal" : `${n > 0 ? "+" : "−"}${fmt(Math.abs(n))}`);
-
-/** Gridlines symmetric about the goal in round steps (100, 250, 500, …), so over and under share one scale. */
-function yAxisTicks(diffs: number[]): { domain: [number, number]; ticks: number[] } {
-  const reach = Math.max(100, ...diffs.map(Math.abs));
-  const step = [100, 250, 500, 1000, 2500].find((s) => s * 3 >= reach) ?? 5000;
-  const top = Math.ceil(reach / step) * step;
+/**
+ * Y-axis bounds and gridlines in round steps (250, 500, 1,000, …) from zero (or below, for a day that burned more
+ * than it ate) to past the highest bar and the goal line, so both are always in view.
+ */
+function yAxisTicks(values: number[]): { domain: [number, number]; ticks: number[] } {
+  const [min, max] = [Math.min(0, ...values), Math.max(100, ...values)];
+  const step = [250, 500, 1000, 2500].find((s) => s * 5 >= max - min) ?? 5000;
+  const [lo, hi] = [Math.floor(min / step) * step, Math.ceil(max / step) * step];
   const ticks: number[] = [];
-  for (let t = -top; t <= top; t += step) ticks.push(t);
-  return { domain: [-top, top], ticks };
+  for (let t = lo; t <= hi; t += step) ticks.push(t);
+  return { domain: [lo, hi], ticks };
 }
 
 const CHART_HEIGHT = "h-52";
@@ -36,7 +36,8 @@ const CHART_HEIGHT = "h-52";
 /**
  * Each day's net calories (eaten − burned, as the budget counts them) against the calorie goal over 30d / 90d / 1y,
  * always ending at the server's today, with a marker on `date` (the viewed day) when it falls inside the range.
- * Bars start at the goal line: up and red is over, down and teal is under. Days with nothing logged are gaps.
+ * Bars rise from zero to the day's net, with a dashed goal line across: a red bar crosses it (over), a teal one
+ * stops short (under). Days with nothing logged are gaps.
  */
 export function CalorieTrendChart({ date }: { date: string }) {
   const [range, setRange] = useState<WeightRange>(rangeChoice.get);
@@ -105,7 +106,7 @@ function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }
   const avg = done.length ? Math.round(done.reduce((sum, r) => sum + r.diff, 0) / done.length) : null;
   const under = done.filter((r) => r.diff <= 0).length;
 
-  const { domain, ticks: yTicks } = yAxisTicks(rows.map((r) => r.diff));
+  const { domain, ticks: yTicks } = yAxisTicks([goal, ...rows.map((r) => r.net)]);
   const marked = date >= from && date <= today;
 
   return (
@@ -137,15 +138,16 @@ function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }
             tickMargin={8}
             interval={0}
           />
-          <YAxis domain={domain} ticks={yTicks} width={48} tickLine={false} axisLine={false} tickFormatter={signed} />
+          <YAxis domain={domain} ticks={yTicks} width={44} tickLine={false} axisLine={false} tickFormatter={(n: number) => fmt(n)} />
           <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.6 }} content={<GoalTooltip goal={goal} today={today} />} />
-          <ReferenceLine y={0} stroke="var(--foreground)" strokeOpacity={0.5} />
           {marked && <ReferenceLine x={dayNumber(date)} stroke="var(--chart-3)" strokeWidth={2} strokeDasharray="4 3" />}
-          <Bar dataKey="diff" isAnimationActive={false}>
+          <Bar dataKey="net" radius={[2, 2, 0, 0]} isAnimationActive={false}>
             {rows.map((r) => (
               <Cell key={r.date} fill={r.diff > 0 ? OVER : UNDER} />
             ))}
           </Bar>
+          {/* After the bars so the line stays visible across them. */}
+          <ReferenceLine y={goal} stroke="var(--foreground)" strokeWidth={1.5} strokeDasharray="6 4" ifOverflow="extendDomain" />
         </BarChart>
       </ChartContainer>
 
@@ -155,6 +157,9 @@ function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }
         </li>
         <li className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-[2px]" style={{ background: OVER }} /> Over goal
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span className="w-4 border-t-[1.5px] border-dashed border-foreground" /> Goal
         </li>
         {marked && (
           <li className="flex items-center gap-1.5">
