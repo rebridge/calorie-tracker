@@ -4,3 +4,10 @@ dist/
 .env
 data/
 .DS_Store
+
+# iOS
+.build/
+.swiftpm/
+xcuserdata/
+DerivedData/
+*.ipa
