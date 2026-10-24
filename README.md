@@ -4,6 +4,8 @@ Self-hosted, single-user calorie tracker for phones. Describe what you ate in pl
 
 There is no login: anyone who can reach the port can read and edit your data. Keep it on your LAN or tailnet, never on the public internet.
 
+There's also a native iPhone app that keeps working off the tailnet and uploads when it's back on: see [`ios/README.md`](ios/README.md).
+
 ## Run with Docker
 
 You need Docker with Compose v2 and an [Anthropic API key](https://console.anthropic.com/).
@@ -118,5 +120,6 @@ To run the production build without Docker: `npm run build`, then `ANTHROPIC_API
 | `web/` | Vite + React 18 + Tailwind + shadcn/ui |
 | `server/` | Hono API, Drizzle schema + migrations (`server/drizzle/`), runs migrations on startup |
 | `shared/` | Zod schemas shared by web and server |
+| `ios/` | Native iPhone app (SwiftUI) and its `CalorieCore` Swift package |
 
 After changing `server/src/db/schema.ts`, run `npm run db:generate -w server` to create a migration.

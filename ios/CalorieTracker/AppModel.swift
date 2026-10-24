@@ -39,7 +39,7 @@ final class AppModel: SyncHost {
     var weightRange: TrendRange = .month
     var calorieRange: TrendRange = .week
 
-    private let transport = URLSessionTransport()
+    private let transport: URLSessionTransport
     private let engine: SyncEngine
     private let pathMonitor = NWPathMonitor()
     @ObservationIgnored private var pollTask: Task<Void, Never>? = nil
@@ -52,10 +52,14 @@ final class AppModel: SyncHost {
     }
 
     init() {
+        // Locals first: @Observable makes the properties computed, so they can't be read until all are set.
+        let url = UserDefaults.standard.string(forKey: Defaults.server).flatMap(ServerAPI.baseURL(from:))
+        let transport = URLSessionTransport()
         state = StoreFile.load() ?? StoreState()
-        serverURL = UserDefaults.standard.string(forKey: Defaults.server).flatMap(ServerAPI.baseURL(from:))
+        serverURL = url
         hasAPIKey = Keychain.read(Keychain.apiKey) != nil
-        phase = serverURL == nil ? .notConfigured : .idle
+        phase = url == nil ? .notConfigured : .idle
+        self.transport = transport
         engine = SyncEngine(transport: transport)
         // Turning Tailscale on or off, or joining Wi-Fi, changes the network path: a good moment to try.
         pathMonitor.pathUpdateHandler = { [weak self] _ in

@@ -173,7 +173,11 @@ const MealSchema = z.object({
 | `DELETE` | `/api/weights/:date` | Delete that day's weight |
 | `GET` | `/api/weights?range=30d\|90d\|1y` | Raw points plus a 7-day moving average |
 | `GET`/`PUT` | `/api/settings` | Goals |
-| `GET` | `/api/health` | For the container healthcheck |
+| `GET` | `/api/health` | For the container healthcheck (the iPhone app also uses it to tell whether the server is reachable) |
+| `PUT` | `/api/sync/entries/:client_id` | iPhone app: an entry it estimated itself, keyed by the phone's UUID. Creates it, or replaces its meal type and items on a repeat |
+| `PUT` | `/api/sync/burns/:client_id` | iPhone app: same for a burn |
+
+`POST /api/entries` also takes optional `client_id` and `logged_at` from the iPhone app (text it queued offline): a retry with the same `client_id` returns the saved entry without another model call, and `logged_at` sets `created_at` and the local time sent to the model. See [`ios/README.md`](../../ios/README.md).
 
 Item, entry and burn edits are addressed by id, so they work the same on any date. The server takes "today" from `TZ`, never from the client.
 
