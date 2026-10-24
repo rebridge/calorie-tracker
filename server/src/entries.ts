@@ -1,6 +1,7 @@
 import {
   MEAL_TYPES,
   type DayResponse,
+  type SyncEntryRequest,
   type Entry,
   type EntryItem,
   type Macros,
@@ -62,15 +63,51 @@ function toEntry(r: EntryRow, items: EntryItem[]): Entry {
   };
 }
 
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/** Inserts an entry's items in order (so their ids follow the input order) and returns them. */
+function insertItems(
+  tx: Tx,
+  entryId: number,
+  items: Array<Omit<EntryItem, "id" | "entry_id" | "edited"> & { edited?: boolean }>,
+): EntryItem[] {
+  return tx
+    .insert(entryItems)
+    .values(
+      items.map((i) => ({
+        entryId,
+        name: i.name,
+        portion: i.portion,
+        calories: Math.round(nonNegative(i.calories)),
+        proteinG: round1(nonNegative(i.protein_g)),
+        carbsG: round1(nonNegative(i.carbs_g)),
+        fatG: round1(nonNegative(i.fat_g)),
+        confidence: i.confidence,
+        assumption: i.assumption,
+        edited: i.edited ?? false,
+      })),
+    )
+    .returning()
+    .all()
+    .sort((a, b) => a.id - b.id)
+    .map(toItem);
+}
+
+function itemsOf(tx: Tx | Db, entryId: number): EntryItem[] {
+  return tx.select().from(entryItems).where(eq(entryItems.entryId, entryId)).orderBy(asc(entryItems.id)).all().map(toItem);
+}
+
 /** Saves an entry and its items in one transaction and returns it. */
 export function createEntry(
   db: Db,
-  { text, localDate, mealType, estimate, now = new Date() }: {
+  { text, localDate, mealType, estimate, now = new Date(), clientId }: {
     text: string;
     localDate: string;
     mealType: MealType;
     estimate: Estimate;
     now?: Date;
+    /** The iOS app's id for the entry, when it queued the text offline. */
+    clientId?: string;
   },
 ): Entry {
   return db.transaction((tx) => {
@@ -85,27 +122,52 @@ export function createEntry(
         modelResponse: JSON.stringify(estimate.response),
         inputTokens: estimate.inputTokens,
         outputTokens: estimate.outputTokens,
+        clientId,
       })
       .returning()
       .get();
-    const items = tx
-      .insert(entryItems)
-      .values(
-        estimate.meal.items.map((i) => ({
-          entryId: entry.id,
-          name: i.name,
-          portion: i.portion,
-          calories: Math.round(nonNegative(i.calories)),
-          proteinG: round1(nonNegative(i.protein_g)),
-          carbsG: round1(nonNegative(i.carbs_g)),
-          fatG: round1(nonNegative(i.fat_g)),
-          confidence: i.confidence,
-          assumption: i.assumption,
-        })),
-      )
+    return toEntry(entry, insertItems(tx, entry.id, estimate.meal.items));
+  });
+}
+
+/** The entry the iOS app uploaded under `clientId`, or undefined if there isn't one. */
+export function getEntryByClientId(db: Db, clientId: string): Entry | undefined {
+  const row = db.select().from(entries).where(eq(entries.clientId, clientId)).get();
+  return row && toEntry(row, itemsOf(db, row.id));
+}
+
+/**
+ * Saves an entry the iOS app estimated itself (`PUT /api/sync/entries/:client_id`). A second upload with the same
+ * client id replaces the meal type and items, which is how an edit made on the phone mid-upload gets through.
+ */
+export function upsertSyncedEntry(
+  db: Db,
+  clientId: string,
+  { body, localDate, createdAt }: { body: SyncEntryRequest; localDate: string; createdAt: Date },
+): { entry: Entry; created: boolean } {
+  return db.transaction((tx) => {
+    const existing = tx.select().from(entries).where(eq(entries.clientId, clientId)).get();
+    if (existing) {
+      const row = tx.update(entries).set({ mealType: body.meal_type }).where(eq(entries.id, existing.id)).returning().get()!;
+      tx.delete(entryItems).where(eq(entryItems.entryId, existing.id)).run();
+      return { entry: toEntry(row, insertItems(tx, row.id, body.items)), created: false };
+    }
+    const row = tx
+      .insert(entries)
+      .values({
+        createdAt: createdAt.toISOString(),
+        localDate,
+        mealType: body.meal_type,
+        rawText: body.text,
+        model: body.model,
+        modelResponse: body.model_response,
+        inputTokens: body.input_tokens,
+        outputTokens: body.output_tokens,
+        clientId,
+      })
       .returning()
-      .all();
-    return toEntry(entry, items.map(toItem));
+      .get();
+    return { entry: toEntry(row, insertItems(tx, row.id, body.items)), created: true };
   });
 }
 
@@ -154,8 +216,7 @@ export function updateEntry(db: Db, id: number, patch: UpdateEntryRequest) {
   return db.transaction((tx) => {
     const row = tx.update(entries).set({ mealType: patch.meal_type }).where(eq(entries.id, id)).returning().get();
     if (!row) return undefined;
-    const items = tx.select().from(entryItems).where(eq(entryItems.entryId, id)).orderBy(asc(entryItems.id)).all();
-    return { local_date: row.localDate, entry: toEntry(row, items.map(toItem)) };
+    return { local_date: row.localDate, entry: toEntry(row, itemsOf(tx, id)) };
   });
 }
 

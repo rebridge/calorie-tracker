@@ -13,7 +13,7 @@ import { burns } from "./db/schema.js";
 
 type BurnRow = typeof burns.$inferSelect;
 
-function toBurn(r: BurnRow): Burn {
+export function toBurn(r: BurnRow): Burn {
   return { id: r.id, local_date: r.localDate, calories: r.calories, note: r.note, created_at: r.createdAt };
 }
 
@@ -29,7 +29,7 @@ export function getBurns(db: Db, date: string): Burn[] {
 }
 
 /** Blank notes are stored as no note. */
-const cleanNote = (note: string | null | undefined) => note || null;
+export const cleanNote = (note: string | null | undefined) => note || null;
 
 /** `POST /burns`, `PATCH`/`DELETE /burns/:id`, mounted under `/api`. */
 export function burnRoutes(db: Db, now: () => Date) {

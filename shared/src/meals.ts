@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BurnSchema } from "./burns.js";
+import { ClientIdSchema, LoggedAtSchema } from "./client-id.js";
 import { LocalDateSchema } from "./dates.js";
 import { SettingsSchema } from "./settings.js";
 import { WeightSchema } from "./weights.js";
@@ -54,6 +55,13 @@ export const CreateEntryRequestSchema = z.object({
     .refine((text) => text.trim() !== "", "Describe what you ate"),
   date: LocalDateSchema.optional(),
   meal_type: MealTypeSchema.optional(),
+  /**
+   * Sent by the iOS app when it queued the text offline for the server to estimate. A retry with the same id
+   * returns the saved entry without calling the model again.
+   */
+  client_id: ClientIdSchema.optional(),
+  /** When the phone logged it: sets `created_at` and the local time sent to the model. */
+  logged_at: LoggedAtSchema.optional(),
 });
 export type CreateEntryRequest = z.infer<typeof CreateEntryRequestSchema>;
 

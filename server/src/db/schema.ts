@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Single row, id = 1.
 export const settings = sqliteTable("settings", {
@@ -22,8 +22,10 @@ export const entries = sqliteTable(
     modelResponse: text("model_response").notNull(),
     inputTokens: integer("input_tokens").notNull(),
     outputTokens: integer("output_tokens").notNull(),
+    // Set by the iOS app, which creates entries offline: retrying an upload finds the row instead of duplicating it.
+    clientId: text("client_id"),
   },
-  (t) => [index("entries_local_date_idx").on(t.localDate)],
+  (t) => [index("entries_local_date_idx").on(t.localDate), uniqueIndex("entries_client_id_idx").on(t.clientId)],
 );
 
 // Parsed food items.
@@ -63,6 +65,8 @@ export const burns = sqliteTable(
     calories: integer("calories").notNull(),
     note: text("note"),
     createdAt: text("created_at").notNull(),
+    // Same as `entries.client_id`.
+    clientId: text("client_id"),
   },
-  (t) => [index("burns_local_date_idx").on(t.localDate)],
+  (t) => [index("burns_local_date_idx").on(t.localDate), uniqueIndex("burns_client_id_idx").on(t.clientId)],
 );

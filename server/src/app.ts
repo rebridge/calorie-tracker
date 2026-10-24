@@ -21,10 +21,11 @@ import { calorieRoutes } from "./calories.js";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
-import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
+import { createEntry, deleteEntry, deleteItem, getDay, getEntryByClientId, updateEntry, updateItem } from "./entries.js";
 import { firstIssue } from "./first-issue.js";
 import { resolveMealType } from "./meal-type.js";
 import { settingsRoutes } from "./settings.js";
+import { syncRoutes } from "./sync.js";
 import { localTime, today } from "./today.js";
 import { weightRoutes } from "./weights.js";
 
@@ -51,11 +52,20 @@ export function createApp({
   api.post("/entries", async (c) => {
     const body = CreateEntryRequestSchema.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: "invalid_request", reason: firstIssue(body.error) }, 400);
-    const { text, date, meal_type } = body.data;
+    const { text, date, meal_type, client_id, logged_at } = body.data;
 
-    const instant = now();
-    // Defaults to today; null means the date is in the future.
-    const localDate = parseDateParam(date ?? "today", instant);
+    // A retried upload from the iOS app: it's already saved, so don't pay for another estimate.
+    if (client_id) {
+      const saved = getEntryByClientId(db, client_id);
+      if (saved) return c.json(saved satisfies Entry, 200);
+    }
+
+    // Text the phone queued offline is dated by when it was logged, not when it reached the server.
+    // A phone clock running ahead can't push it into the future.
+    const serverNow = now();
+    const instant = logged_at && new Date(logged_at) < serverNow ? new Date(logged_at) : serverNow;
+    // Defaults to the day it was logged; null means the date is in the future.
+    const localDate = parseDateParam(date ?? today(instant), serverNow);
     if (!localDate) return c.json(invalidDateBody, 400);
 
     // A past day gets no local time: the clock says when it was logged, not when it was eaten.
@@ -87,12 +97,16 @@ export function createApp({
       return c.json({ error: "not_food", reason }, 422);
     }
 
+    // Two retries of the same upload can both get here; the second one returns what the first saved.
+    const raced = client_id ? getEntryByClientId(db, client_id) : undefined;
+    if (raced) return c.json(raced satisfies Entry, 200);
     const entry = createEntry(db, {
       text,
       localDate,
       mealType: resolveMealType({ requested: meal_type, fromModel: estimate.meal.meal_type, localTime: time }),
       estimate,
       now: instant,
+      clientId: client_id,
     });
     return c.json(entry satisfies Entry, 201);
   });
@@ -144,6 +158,7 @@ export function createApp({
   api.route("/", burnRoutes(db, now));
   api.route("/", calorieRoutes(db, now));
   api.route("/", settingsRoutes(db));
+  api.route("/", syncRoutes(db, now));
   api.route("/", weightRoutes(db, now));
   app.route("/api", api);
   // Registered before the SPA fallback so unknown API paths never get index.html.
