@@ -66,13 +66,14 @@ describe("GET /api/calories", () => {
     expect(await getCalories()).toEqual({ range: "30d", from: "2026-09-13", today: "2026-10-13", goal_kcal: 2000, points: [] });
   });
 
-  it("starts each range that many days before today", async () => {
+  it("starts each range that many days before today; a week is 7 days including today", async () => {
+    expect((await getCalories("7d")).from).toBe("2026-10-07");
     expect((await getCalories("90d")).from).toBe("2026-07-15");
     expect((await getCalories("1y")).from).toBe("2025-10-13");
   });
 
   it("rejects an unknown range with 400", async () => {
-    const res = await send("GET", "/api/calories?range=7d");
+    const res = await send("GET", "/api/calories?range=14d");
     expect(res.status).toBe(400);
   });
 

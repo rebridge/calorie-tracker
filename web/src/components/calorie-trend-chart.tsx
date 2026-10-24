@@ -1,4 +1,10 @@
-import { formatShortDate, WEIGHT_RANGE_DAYS, WeightRangeSchema, type CaloriesResponse, type WeightRange } from "@calorie-tracker/shared";
+import {
+  CALORIE_RANGE_DAYS,
+  CalorieRangeSchema,
+  formatShortDate,
+  type CalorieRange,
+  type CaloriesResponse,
+} from "@calorie-tracker/shared";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -6,10 +12,11 @@ import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCalorieTrend } from "@/hooks/use-calories";
-import { dayNumber, RANGES, rangeMemory, tickFormatter, xAxisTicks } from "@/lib/chart-axis";
+import { dayNumber, rangeMemory, tickFormatter, xAxisTicks } from "@/lib/chart-axis";
 import { fmt } from "@/lib/meals";
 
-const rangeChoice = rangeMemory("calorie-range");
+const RANGES: CalorieRange[] = ["7d", "30d", "90d", "1y"];
+const rangeChoice = rangeMemory("calorie-range", CalorieRangeSchema, "30d");
 
 const chartConfig = {
   net: { label: "Net" },
@@ -34,13 +41,13 @@ function yAxisTicks(values: number[]): { domain: [number, number]; ticks: number
 const CHART_HEIGHT = "h-52";
 
 /**
- * Each day's net calories (eaten − burned, as the budget counts them) against the calorie goal over 30d / 90d / 1y,
+ * Each day's net calories (eaten − burned, as the budget counts them) against the calorie goal over 7d / 30d / 90d / 1y,
  * always ending at the server's today, with a marker on `date` (the viewed day) when it falls inside the range.
  * Bars rise from zero to the day's net, with a dashed goal line across: a red bar crosses it (over), a teal one
  * stops short (under). Days with nothing logged are gaps.
  */
 export function CalorieTrendChart({ date }: { date: string }) {
-  const [range, setRange] = useState<WeightRange>(rangeChoice.get);
+  const [range, setRange] = useState<CalorieRange>(rangeChoice.get);
   const trend = useCalorieTrend(range);
 
   return (
@@ -51,7 +58,7 @@ export function CalorieTrendChart({ date }: { date: string }) {
         value={range}
         // Tapping the selected range would clear it; a range is always chosen.
         onValueChange={(value) => {
-          const next = WeightRangeSchema.safeParse(value);
+          const next = CalorieRangeSchema.safeParse(value);
           if (!next.success) return;
           rangeChoice.set(next.data);
           setRange(next.data);
@@ -77,7 +84,7 @@ export function CalorieTrendChart({ date }: { date: string }) {
         <Skeleton className={`${CHART_HEIGHT} w-full`} />
       ) : trend.data.points.length === 0 ? (
         <p className={`flex ${CHART_HEIGHT} items-center justify-center text-center text-sm text-muted-foreground`}>
-          Nothing logged in the last {range === "1y" ? "year" : `${WEIGHT_RANGE_DAYS[range]} days`}.
+          Nothing logged in the last {range === "7d" ? "week" : range === "1y" ? "year" : `${CALORIE_RANGE_DAYS[range]} days`}.
         </p>
       ) : (
         <CaloriesPlot trend={trend.data} date={date} />
@@ -141,7 +148,7 @@ function CaloriesPlot({ trend, date }: { trend: CaloriesResponse; date: string }
           <YAxis domain={domain} ticks={yTicks} width={44} tickLine={false} axisLine={false} tickFormatter={(n: number) => fmt(n)} />
           <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.6 }} content={<GoalTooltip goal={goal} today={today} />} />
           {marked && <ReferenceLine x={dayNumber(date)} stroke="var(--chart-3)" strokeWidth={2} strokeDasharray="4 3" />}
-          <Bar dataKey="net" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="net" radius={[2, 2, 0, 0]} maxBarSize={36} isAnimationActive={false}>
             {rows.map((r) => (
               <Cell key={r.date} fill={r.diff > 0 ? OVER : UNDER} />
             ))}

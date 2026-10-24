@@ -12,10 +12,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useWeightTrend } from "@/hooks/use-weight";
-import { dayNumber, RANGES, rangeMemory, tickFormatter, xAxisTicks } from "@/lib/chart-axis";
+import { dayNumber, rangeMemory, tickFormatter, xAxisTicks } from "@/lib/chart-axis";
 import { fmt } from "@/lib/meals";
 
-const rangeChoice = rangeMemory("weight-range");
+const RANGES: WeightRange[] = ["30d", "90d", "1y"];
+const rangeChoice = rangeMemory("weight-range", WeightRangeSchema, "30d");
 
 const chartConfig = {
   weight: { label: "Daily", color: "var(--chart-2)" },

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import {
   addDays,
-  DEFAULT_WEIGHT_RANGE,
-  WEIGHT_RANGE_DAYS,
-  WeightRangeSchema,
+  CALORIE_RANGE_DAYS,
+  CalorieRangeSchema,
+  DEFAULT_CALORIE_RANGE,
   type CaloriesResponse,
 } from "@calorie-tracker/shared";
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
@@ -17,13 +17,13 @@ export function calorieRoutes(db: Db, now: () => Date) {
   const routes = new Hono();
 
   routes.get("/calories", (c) => {
-    const parsed = WeightRangeSchema.safeParse(c.req.query("range") ?? DEFAULT_WEIGHT_RANGE);
+    const parsed = CalorieRangeSchema.safeParse(c.req.query("range") ?? DEFAULT_CALORIE_RANGE);
     if (!parsed.success) {
-      return c.json({ error: "invalid_request", reason: "range: use 30d, 90d or 1y" }, 400);
+      return c.json({ error: "invalid_request", reason: "range: use 7d, 30d, 90d or 1y" }, 400);
     }
     const range = parsed.data;
     const end = today(now());
-    const from = addDays(end, -WEIGHT_RANGE_DAYS[range]);
+    const from = addDays(end, -CALORIE_RANGE_DAYS[range]);
 
     const eaten = db
       .select({ date: entries.localDate, kcal: sql<number>`sum(${entryItems.calories})` })
