@@ -2,8 +2,14 @@ import type * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import { cn } from "@/lib/utils";
 
+/**
+ * `repositionInputs` is off: vaul lifts the sheet by `innerHeight - visualViewport.height` when the keyboard
+ * opens, but `interactive-widget=resizes-content` (index.html) already shrinks the page above the keyboard,
+ * and iOS scrolls a focused input into view itself. Whenever vaul measures before that resize lands, the
+ * sheet is lifted twice and its inputs end up above the top of the screen.
+ */
 function Drawer(props: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />;
+  return <DrawerPrimitive.Root data-slot="drawer" repositionInputs={false} {...props} />;
 }
 
 function DrawerTrigger(props: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
