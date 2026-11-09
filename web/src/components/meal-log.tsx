@@ -97,7 +97,8 @@ function ItemRow({ item }: { item: EntryItem }) {
 
   return (
     // The row button stretches over the whole <li> (after:inset-0); the badge sits above it (z-10) so it stays tappable.
-    <li className="relative flex min-h-11 items-center justify-between gap-2 py-2">
+    // `isolate` keeps that z-10 inside the row, so the badge scrolls under the sticky header, date bar and composer.
+    <li className="relative isolate flex min-h-11 items-center justify-between gap-2 py-2">
       <button
         type="button"
         onClick={() => setEditing(true)}

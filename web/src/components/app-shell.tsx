@@ -1,5 +1,5 @@
 import { CalendarDays, NotebookPen, Settings } from "lucide-react";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useLayoutEffect } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +81,12 @@ function useKeyboardFlag() {
 export function AppShell() {
   const { pathname } = useLocation();
   useKeyboardFlag();
+  // Each page opens at the top. Without this a page inherits the last one's scroll offset (e.g. Settings
+  // opened from the bottom of Day starts at its Save button). Stepping between days in /day/:date keeps it.
+  const section = pathname.split("/")[1];
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [section]);
   const title = titles[pathname] ?? (pathname.startsWith("/day") ? "Day" : "Calories");
 
   return (
