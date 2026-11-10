@@ -21,7 +21,7 @@ import { calorieRoutes } from "./calories.js";
 import { ModelError, type Estimate, type MealEstimator } from "./claude.js";
 import { invalidDateBody, parseDateParam } from "./date-param.js";
 import type { Db } from "./db/index.js";
-import { createEntry, deleteEntry, deleteItem, getDay, updateEntry, updateItem } from "./entries.js";
+import { createEntry, deleteEntry, deleteItem, getDay, repeatEntry, updateEntry, updateItem } from "./entries.js";
 import { firstIssue } from "./first-issue.js";
 import { resolveMealType } from "./meal-type.js";
 import { settingsRoutes } from "./settings.js";
@@ -132,6 +132,15 @@ export function createApp({
     const result = updateEntry(db, id, body.data);
     if (!result) return c.json(notFound("Entry"), 404);
     return c.json(result satisfies UpdateEntryResponse);
+  });
+
+  // Logs an existing entry again today. Nothing goes to the model, so it's instant and keeps the user's edits.
+  api.post("/entries/:id/repeat", (c) => {
+    const id = parseId(c.req.param("id"));
+    const instant = now();
+    const entry = id === null ? undefined : repeatEntry(db, id, { localDate: today(instant), now: instant });
+    if (!entry) return c.json(notFound("Entry"), 404);
+    return c.json(entry satisfies Entry, 201);
   });
 
   api.delete("/entries/:id", (c) => {

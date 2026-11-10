@@ -109,6 +109,39 @@ export function createEntry(
   });
 }
 
+/**
+ * Logs a saved entry again on `localDate` without asking the model: same text, meal type and items, including
+ * any edits made to them. The copy records no tokens, since none were spent. Undefined if the entry doesn't exist.
+ */
+export function repeatEntry(db: Db, id: number, { localDate, now = new Date() }: { localDate: string; now?: Date }) {
+  return db.transaction((tx) => {
+    const source = tx.select().from(entries).where(eq(entries.id, id)).get();
+    if (!source) return undefined;
+    const sourceItems = tx.select().from(entryItems).where(eq(entryItems.entryId, id)).orderBy(asc(entryItems.id)).all();
+    const entry = tx
+      .insert(entries)
+      .values({
+        createdAt: now.toISOString(),
+        localDate,
+        mealType: source.mealType,
+        rawText: source.rawText,
+        model: source.model,
+        modelResponse: source.modelResponse,
+        inputTokens: 0,
+        outputTokens: 0,
+      })
+      .returning()
+      .get();
+    // An entry always has at least one item: deleting its last one deletes the entry.
+    const items = tx
+      .insert(entryItems)
+      .values(sourceItems.map(({ id: _id, entryId: _entryId, ...item }) => ({ ...item, entryId: entry.id })))
+      .returning()
+      .all();
+    return toEntry(entry, items.map(toItem));
+  });
+}
+
 /** Edits an item and marks it edited. Undefined if the item doesn't exist. */
 export function updateItem(db: Db, id: number, patch: UpdateItemRequest) {
   return db.transaction((tx) => {

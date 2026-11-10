@@ -1,5 +1,5 @@
 import { MEAL_TYPES, type Entry } from "@calorie-tracker/shared";
-import { ArrowRightLeft, Check, EllipsisVertical, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Check, EllipsisVertical, Repeat2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -14,15 +14,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useDeleteEntry, useUpdateEntry } from "@/hooks/use-edit-entries";
+import { useDeleteEntry, useRepeatEntry, useUpdateEntry } from "@/hooks/use-edit-entries";
 import { mealLabels } from "@/lib/meals";
 
-/** Overflow menu on an entry card: change its meal type or delete it. */
+/** Overflow menu on an entry card: log it again today, change its meal type or delete it. */
 export function EntryMenu({ entry }: { entry: Entry }) {
   const [mealPickerOpen, setMealPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const updateEntry = useUpdateEntry();
   const deleteEntry = useDeleteEntry();
+  const repeatEntry = useRepeatEntry();
 
   return (
     <>
@@ -35,6 +36,10 @@ export function EntryMenu({ entry }: { entry: Entry }) {
           <EllipsisVertical className="size-5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {/* First, as the most common action: a repeat meal is one tap, with no retyping and no wait for an estimate. */}
+          <DropdownMenuItem disabled={repeatEntry.isPending} onSelect={() => repeatEntry.mutate(entry.id)}>
+            <Repeat2 /> Log again today
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setMealPickerOpen(true)}>
             <ArrowRightLeft /> Change meal type
           </DropdownMenuItem>

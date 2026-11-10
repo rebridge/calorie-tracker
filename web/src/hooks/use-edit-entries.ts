@@ -1,6 +1,7 @@
 import {
   DeleteEntryResponseSchema,
   DeleteItemResponseSchema,
+  EntrySchema,
   UpdateEntryResponseSchema,
   UpdateItemResponseSchema,
   type UpdateEntryRequest,
@@ -9,7 +10,8 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invalidateDay } from "@/hooks/use-day";
-import { apiDelete, apiPatch } from "@/lib/api";
+import { fmt } from "@/lib/meals";
+import { apiDelete, apiPatch, apiPost } from "@/lib/api";
 
 /** Every mutation response names the affected day; refresh that day's query (and "today", unless that day is in the past). */
 export function useInvalidateDay() {
@@ -45,6 +47,19 @@ export function useUpdateEntry() {
       apiPatch(`/api/entries/${id}`, body, UpdateEntryResponseSchema),
     onSuccess: invalidateDay,
     onError: onError("change the meal type"),
+  });
+}
+
+/** Logs a saved entry again today, as it stands now (edits included), without a new estimate. */
+export function useRepeatEntry() {
+  const invalidateDay = useInvalidateDay();
+  return useMutation({
+    mutationFn: (id: number) => apiPost(`/api/entries/${id}/repeat`, undefined, EntrySchema),
+    onSuccess: (entry) => {
+      toast.success(`Logged again today · ${fmt(entry.calories)} kcal`);
+      return invalidateDay(entry);
+    },
+    onError: onError("log that again"),
   });
 }
 

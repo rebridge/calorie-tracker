@@ -278,3 +278,54 @@ describe("DELETE /api/entries/:id", () => {
     expect((await send("DELETE", "/api/entries/abc")).status).toBe(404);
   });
 });
+
+describe("POST /api/entries/:id/repeat", () => {
+  it("copies a past day's entry to today without calling the model", async () => {
+    const source = (await (await send("POST", "/api/entries", { text: "eggs and coffee", date: "2026-10-10", meal_type: "breakfast" })).json()) as Entry;
+    estimateMeal.mockClear();
+
+    const res = await send("POST", `/api/entries/${source.id}/repeat`);
+    expect(res.status).toBe(201);
+    const copy = (await res.json()) as Entry;
+
+    expect(estimateMeal).not.toHaveBeenCalled();
+    expect(copy.id).not.toBe(source.id);
+    expect(copy).toMatchObject({
+      local_date: "2026-10-13",
+      created_at: clock.toISOString(),
+      meal_type: "breakfast",
+      raw_text: "eggs and coffee",
+      calories: 402,
+    });
+    expect(copy.items.map((i) => i.name)).toEqual(source.items.map((i) => i.name));
+    expect(copy.items.every((i) => i.entry_id === copy.id)).toBe(true);
+    expect((await getDay()).totals.eaten_kcal).toBe(402);
+    // The source stays where it was.
+    expect(rows().entries.find((e) => e.id === source.id)?.localDate).toBe("2026-10-10");
+  });
+
+  it("carries over edits and records no tokens for the copy", async () => {
+    const source = await logMeal();
+    await send("PATCH", `/api/items/${source.items[0]!.id}`, { calories: 250 });
+    await send("PATCH", `/api/entries/${source.id}`, { meal_type: "lunch" });
+
+    const copy = (await (await send("POST", `/api/entries/${source.id}/repeat`)).json()) as Entry;
+    expect(copy.meal_type).toBe("lunch");
+    expect(copy.items[0]).toMatchObject({ calories: 250, edited: true });
+    expect(copy.calories).toBe(470);
+
+    const copyRow = rows().entries.find((e) => e.id === copy.id)!;
+    expect(copyRow).toMatchObject({ inputTokens: 0, outputTokens: 0, model: "claude-haiku-5-5" });
+    // Editing the copy leaves the source alone.
+    await send("PATCH", `/api/items/${copy.items[0]!.id}`, { calories: 1 });
+    expect(rows().items.find((i) => i.id === source.items[0]!.id)?.calories).toBe(250);
+  });
+
+  it("returns 404 for a missing entry and saves nothing", async () => {
+    const res = await send("POST", "/api/entries/999/repeat");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found", reason: "Entry not found" });
+    expect((await send("POST", "/api/entries/abc/repeat")).status).toBe(404);
+    expect(rows().entries).toHaveLength(0);
+  });
+});
