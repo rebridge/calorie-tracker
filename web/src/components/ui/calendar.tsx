@@ -16,7 +16,8 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3 [--cell-size:--spacing(11)]", className)}
+      // 44px cells, shrunk on phones narrower than ~370px so all seven columns fit (popover margin + p-3 = 3.5rem).
+      className={cn("p-3 [--cell-size:min(--spacing(11),calc((100vw-3.5rem)/7))]", className)}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
         months: cn("relative flex flex-col gap-4 md:flex-row", defaultClassNames.months),
