@@ -1,6 +1,6 @@
 import type { Burn } from "@calorie-tracker/shared";
 import { LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,14 @@ function BurnForm({ burn, date, close }: { burn?: Burn; date?: string; close: ()
   const saving = createBurn.isPending || updateBurn.isPending;
   const busy = saving || deleteBurn.isPending;
 
+  // Focus the calories input of a new burn as the sheet mounts (still inside the tap, so iOS raises the keyboard).
+  // Not `autoFocus`: the sheet is still below the screen at this point, and a plain focus() makes the browser
+  // scroll the page up to reach it, taking the sheet off the top once it has slid in.
+  useLayoutEffect(() => {
+    if (!burn) document.getElementById("burn-calories")?.focus({ preventScroll: true });
+    // Only on mount.
+  }, []);
+
   const parsed = parseCalories(calories);
   const valid = parsed !== null;
 
@@ -85,7 +93,6 @@ function BurnForm({ burn, date, close }: { burn?: Burn; date?: string; close: ()
             id="burn-calories"
             inputMode="decimal"
             autoComplete="off"
-            autoFocus={!burn}
             value={calories}
             onChange={(e) => setCalories(e.target.value)}
             aria-invalid={calories !== "" && !valid}
