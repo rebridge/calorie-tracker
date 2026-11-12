@@ -16,7 +16,7 @@ docker compose up -d --build
 docker compose ps                             # wait for "healthy" (up to ~30s)
 ```
 
-The port is published on `127.0.0.1` only, so open `http://localhost:8080` on the host and use Tailscale (below) from other devices. To reach it directly from your LAN instead, change `ports:` to `"8080:8080"`.
+The port is published on `127.0.0.1` only, so open `http://localhost:8080` on the host and use Tailscale (below) from other devices. To use another port, set `CALORIES_PORT` in `.env`. To reach it directly from your LAN instead, set `CALORIES_BIND=0.0.0.0` in `.env`.
 
 If `./data` doesn't exist, Docker creates it owned by root and the container can't write to it. It restarts in a loop and the logs (`docker compose logs`) say to run `sudo chown -R 1000:1000 ./data`.
 
@@ -35,13 +35,16 @@ Then open `https://<host>.<tailnet>.ts.net` from any device on the tailnet. `tai
 | Setting | Where | Default |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | `.env` | required; the server refuses to start without it |
-| `TZ` | `docker-compose.yml` | `America/New_York` |
+| `TZ` | `.env` | `America/New_York` |
+| `CALORIES_PORT` | `.env` | `8080` (host port; the container always listens on 8080 inside) |
+| `CALORIES_BIND` | `.env` | `127.0.0.1` (host address; `0.0.0.0` for your LAN, or the host's Tailscale IP) |
 | `DATABASE_PATH` | `docker-compose.yml` | `/data/calories.db` (the `./data` volume) |
-| `PORT` | container env | `8080` (change the host port in `ports:`, e.g. `127.0.0.1:8090:8080`, to publish elsewhere) |
+
+After changing `.env`, run `docker compose up -d` to apply it. If you change `CALORIES_PORT`, use the same number in `tailscale serve`.
 
 #### Changing `TZ`
 
-Edit the `TZ:` line in `docker-compose.yml` (an [IANA name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones), e.g. `Europe/London`), then `docker compose up -d`. It sets:
+Set `TZ=` in `.env` (an [IANA name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones), e.g. `Europe/London`), then `docker compose up -d`. It sets:
 
 - the day boundary: what counts as "today" for new entries, burns and weights, and for the Log and Day views;
 - the clock used to guess the meal type (breakfast, lunch, dinner or snack) when you log something now.

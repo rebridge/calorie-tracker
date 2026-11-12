@@ -3,10 +3,13 @@ services:
     build: .
     image: calorie-counter:latest
     restart: unless-stopped
-    ports: ["127.0.0.1:8080:8080"]   # localhost only; reach it via tailscale serve
+    ports:
+      # Set in .env. CALORIES_BIND is the host address to listen on: keep 127.0.0.1
+      # when `tailscale serve` fronts the app, or use the host's Tailscale IP (100.x.y.z).
+      - "${CALORIES_BIND:-127.0.0.1}:${CALORIES_PORT:-8080}:8080"
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      TZ: America/New_York        # sets the day boundary
+      TZ: ${TZ:-America/New_York}        # sets the day boundary; set in .env
       DATABASE_PATH: /data/calories.db
     volumes:
       - ./data:/data
